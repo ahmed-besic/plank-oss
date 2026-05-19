@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": ["./**/*.ts"],
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "types": ["node"]
+  }
+}

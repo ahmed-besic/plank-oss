@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+dist
+coverage
+.env
+.env.*
+!.env.example
+.DS_Store
+apps/web/.tanstack
+apps/web/.output
+convex/.convex
+playwright-report
+test-results
+.pi-lens

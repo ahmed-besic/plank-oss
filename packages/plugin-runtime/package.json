@@ -1,0 +1,20 @@
+{
+  "name": "@plank/plugin-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo \"No lint step for @plank/plugin-runtime\"",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --check src",
+    "check": "prettier --check src"
+  },
+  "dependencies": {
+    "@plank/domain": "workspace:*",
+    "@plank/plugin-sdk": "workspace:*"
+  }
+}

@@ -1,0 +1,66 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- background -->
+  <rect width="256" height="256" rx="56" fill="#0F172A"/>
+
+  <!-- enlarged plank -->
+  <g transform="rotate(-10 128 128)">
+  
+
+    <!-- wood body -->
+    <rect x="18" y="62" width="220" height="132" rx="30"
+          fill="#C08447"/>
+
+    <!-- wood grain -->
+    <path d="M42 100C72 90 102 90 132 100C162 110 194 110 222 100"
+          stroke="#8B5E34"
+          stroke-width="6"
+          stroke-linecap="round"
+          opacity="0.35"/>
+
+    <path d="M42 146C78 136 114 136 150 146C186 156 208 156 224 148"
+          stroke="#8B5E34"
+          stroke-width="6"
+          stroke-linecap="round"
+          opacity="0.35"/>
+
+    <!-- carved kanban lanes -->
+    <rect x="46" y="85" width="52" height="78" rx="12"
+          fill="#8B5E34"/>
+
+    <rect x="104" y="85" width="52" height="58" rx="12"
+          fill="#8B5E34"/>
+
+    <rect x="162" y="85" width="52" height="82" rx="12"
+          fill="#8B5E34"/>
+
+    <!-- thicker task lines -->
+    <!-- left -->
+    <rect x="54" y="95" width="35" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+    <rect x="54" y="112" width="32" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+    <rect x="54" y="129" width="26" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+
+    <!-- middle -->
+    <rect x="112" y="95" width="35" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+    <rect x="112" y="112" width="26" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+
+    <!-- right -->
+    <rect x="170" y="95" width="35" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+    <rect x="170" y="112" width="31" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+    <rect x="170" y="129" width="26" height="11" rx="4.5"
+          fill="white" opacity="0.22"/>
+
+    <!-- screws -->
+    <circle cx="34" cy="82" r="5" fill="#E5E7EB"/>
+    <circle cx="222" cy="176" r="5" fill="#E5E7EB"/>
+
+  </g>
+
+</svg>

@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+  - packages/plugins/*
+minimumReleaseAge: 1440
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true

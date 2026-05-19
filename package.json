@@ -1,0 +1,46 @@
+{
+  "name": "plank",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.0.7",
+  "dependencies": {
+    "@plank/board-views": "workspace:*",
+    "@plank/domain": "workspace:*",
+    "@plank/plugin-runtime": "workspace:*"
+  },
+  "scripts": {
+    "sync:plugins": "node ./scripts/sync-plugins.mjs",
+    "dev": "pnpm --filter @plank/web dev",
+    "build": "pnpm --filter @plank/web build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm exec vitest run --config vitest.root.config.ts && pnpm -r test",
+    "typecheck": "tsc -p convex/tsconfig.json --noEmit && pnpm -r typecheck",
+    "format": "pnpm -r format",
+    "check": "pnpm -r check",
+    "convex:codegen": "convex codegen",
+    "scan:secrets": "rg -n --hidden --glob \"!.git\" --glob \"!node_modules\" --glob \"!.pnpm-store\" --glob \"!package.json\" \"(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-|BEGIN RSA PRIVATE KEY|BEGIN OPENSSH PRIVATE KEY)\" . && exit 1 || exit 0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss",
+      "unrs-resolver"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@auth/core": "0.37.0",
+    "@convex-dev/auth": "^0.0.92",
+    "convex": "^1.38.0",
+    "prettier": "^3.8.1",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.5"
+  },
+  "predev": "node ./scripts/sync-plugins.mjs",
+  "prebuild": "node ./scripts/sync-plugins.mjs",
+  "pretest": "node ./scripts/sync-plugins.mjs",
+  "pretypecheck": "node ./scripts/sync-plugins.mjs",
+  "precheck": "node ./scripts/sync-plugins.mjs"
+}

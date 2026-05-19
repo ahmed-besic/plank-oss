@@ -1,0 +1,19 @@
+{
+  "name": "@plank/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo \"No lint step for @plank/domain\"",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --check src",
+    "check": "prettier --check src"
+  },
+  "dependencies": {
+    "fractional-indexing": "^3.2.0"
+  }
+}

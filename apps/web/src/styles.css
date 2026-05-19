@@ -1,0 +1,404 @@
+@import 'tailwindcss';
+@import '@blocknote/core/fonts/inter.css';
+@import '@blocknote/react/style.css';
+
+@theme {
+  /* ─── Core palette ─── */
+  --color-cloud-white: #18191b;
+  --color-ghost-gray: #27292d;
+  --color-lavender-mist: #0f1011;
+  --color-ash-charcoal: #f4f4f5;
+  --color-grape-vine: #e6e7eb;
+  --color-lavender-bloom: #858891;
+  --color-muted-violet: #a4a7b0;
+  --color-electric-violet: #7c8cff;
+  --color-deep-plum: #090a0b;
+  --color-success-green: #4fce7a;
+  --color-info-blue: #6aa9ff;
+  --color-warning-orange: #f2a95f;
+  --color-accent-teal: #59d0c8;
+  --color-accent-rose: #f27ea6;
+  --color-surface-glass: rgba(24, 25, 27, 0.78);
+
+  /* ─── Extended palette ─── */
+  --color-violet-50: #1d2138;
+  --color-violet-100: #252b54;
+  --color-violet-200: #354080;
+  --color-violet-500: #7c8cff;
+  --color-violet-600: #98a5ff;
+  --color-violet-700: #c3caff;
+  --color-surface-raised: #1c1d20;
+  --color-surface-sunken: #121315;
+  --color-border-subtle: rgba(255, 255, 255, 0.07);
+  --color-border-default: rgba(255, 255, 255, 0.11);
+  --color-border-strong: rgba(255, 255, 255, 0.18);
+  --color-text-primary: #e6e7eb;
+  --color-text-secondary: #b7bac3;
+  --color-text-tertiary: #858891;
+  --color-text-placeholder: #5f636d;
+
+  /* ─── Shadows ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-subtle: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-subtle-2:
+    0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 28px rgba(0, 0, 0, 0.3);
+  --shadow-button:
+    0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-elevated:
+    0 18px 54px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-glow-violet: 0 0 0 3px rgba(124, 140, 255, 0.18);
+  --shadow-card-hover:
+    0 14px 36px rgba(0, 0, 0, 0.34), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-drawer:
+    0 24px 80px rgba(0, 0, 0, 0.55), 0 8px 24px rgba(0, 0, 0, 0.36);
+
+  /* ─── Animations ─── */
+  --animate-fade-in: fade-in 0.25s ease-out;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-right: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-shimmer: shimmer 2s linear infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 30% -10%, rgba(124, 140, 255, 0.08), transparent 32rem),
+    var(--color-lavender-mist);
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: var(--color-text-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(124, 140, 255, 0.28);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* ─── Utility classes for the design system ─── */
+
+.glass-surface {
+  background: rgba(24, 25, 27, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gradient-accent {
+  background: linear-gradient(135deg, #7c8cff 0%, #8b94ff 50%, #59d0c8 100%);
+}
+
+.gradient-surface {
+  background: linear-gradient(180deg, #1c1d20 0%, #0f1011 100%);
+}
+
+.text-gradient-accent {
+  background: linear-gradient(135deg, #9aa6ff, #59d0c8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Section card pattern ─── */
+.section-card {
+  background: var(--color-cloud-white);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.section-card:hover {
+  border-color: var(--color-border-default);
+}
+
+.section-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.section-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--color-electric-violet);
+  color: #0f1011;
+  box-shadow: 0 2px 8px rgba(124, 140, 255, 0.25);
+}
+
+/* ─── Tag chip pattern ─── */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.tag-chip-default {
+  background: var(--color-lavender-mist);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-subtle);
+}
+
+.tag-chip-selected {
+  background: rgba(124, 140, 255, 0.14);
+  color: var(--color-electric-violet);
+  border-color: rgba(124, 140, 255, 0.24);
+}
+
+/* ─── Dark default compatibility layer ─── */
+.bg-white,
+.bg-grape-vine,
+.bg-zinc-50,
+.bg-zinc-100,
+.bg-red-50 {
+  background-color: var(--color-cloud-white) !important;
+}
+
+.bg-white\/70,
+.bg-white\/72,
+.bg-white\/80,
+.bg-white\/90,
+.bg-zinc-50\/40,
+.bg-zinc-50\/70 {
+  background-color: rgba(24, 25, 27, 0.78) !important;
+}
+
+.border-white\/40,
+.border-zinc-100,
+.border-zinc-200,
+.border-zinc-200\/80,
+.border-zinc-300 {
+  border-color: var(--color-border-subtle) !important;
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.text-zinc-300,
+.text-zinc-400 {
+  color: var(--color-text-placeholder) !important;
+}
+
+.text-zinc-500,
+.text-zinc-600,
+.text-zinc-700 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.text-zinc-800,
+.text-zinc-900 {
+  color: var(--color-text-primary) !important;
+}
+
+.placeholder\:text-zinc-300::placeholder {
+  color: var(--color-text-placeholder) !important;
+}
+
+input,
+textarea,
+select {
+  background-color: var(--color-cloud-white);
+  color: var(--color-text-primary);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.bn-container,
+.bn-editor,
+.bn-default-styles {
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+}
+
+.bn-editor [data-placeholder]::before,
+.bn-editor .bn-inline-content:empty::before {
+  color: var(--color-text-placeholder) !important;
+}
+
+/* ─── Status dot ─── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot-online {
+  background: var(--color-success-green);
+  box-shadow: 0 0 0 4px rgba(0, 184, 148, 0.2);
+}
+
+.status-dot-offline {
+  background: var(--color-warning-orange);
+  box-shadow: 0 0 0 4px rgba(225, 112, 85, 0.2);
+}
+
+/* Card drawer: make description editor feel wider and more unified. */
+.card-drawer-property-control input,
+.card-drawer-property-control select {
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.card-drawer-property-control input[type="checkbox"] {
+  min-height: 14px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+}
+
+.card-drawer-property-control label {
+  font-size: 12px;
+}
+
+.card-drawer-compact-form input,
+.card-drawer-compact-form select {
+  min-height: 28px;
+  border-radius: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.card-drawer-compact-form button {
+  min-height: 28px;
+}
+
+.card-drawer-editor .bn-editor {
+  padding-inline: 12px;
+}
+
+@media (max-width: 1100px) {
+  .calendar-board-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .card-drawer-editor .bn-editor {
+    padding-inline: 16px;
+  }
+}

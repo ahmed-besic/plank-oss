@@ -1,0 +1,23 @@
+{
+  "name": "@plank/board-views",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "echo \"No lint step for @plank/board-views\"",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "prettier --check src",
+    "check": "prettier --check src"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@plank/domain": "workspace:*",
+    "@plank/plugin-sdk": "workspace:*",
+    "react": "^19.2.0"
+  }
+}
