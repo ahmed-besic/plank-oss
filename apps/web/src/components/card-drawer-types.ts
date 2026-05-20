@@ -1,7 +1,9 @@
 import type {
-  PlankCardSlotDefinition,
+  PlatformClientServices,
   PlankPropertyTypeDefinition,
 } from '@plank/plugin-sdk'
+import type { ReactNode } from 'react'
+import type { ResolvedUiExtension } from '../lib/plugin-ui-extensions'
 import type { BoardPageData } from '../lib/types'
 
 export type BlockNoteDoc = Array<Record<string, unknown>>
@@ -13,7 +15,8 @@ export type DrawerSaveResponse = {
 
 export type CardDrawerProps = {
   activePluginPropertyTypes: PlankPropertyTypeDefinition[]
-  activePluginSlots: PlankCardSlotDefinition[]
+  activePluginSlots: ResolvedUiExtension[]
+  platformServices?: PlatformClientServices
   boardType: BoardPageData['boardType']
   cardType?: BoardPageData['cardTypes'][number]
   tagDefinitions: BoardPageData['tagDefinitions']
@@ -24,6 +27,17 @@ export type CardDrawerProps = {
   commentsOpen?: boolean
   highlightedCommentId?: string
   focusTarget?: 'description' | 'comments'
+  renderCollaborationPanel?: (props: {
+    cardId?: string | null
+    boardId: string
+    highlightedCommentId?: string
+    isOpen: boolean
+    members: BoardPageData['members']
+    onClose?: () => void
+    standalone?: boolean
+    viewerUserId?: BoardPageData['viewerUserId']
+    workspaceSlug: string
+  }) => ReactNode
   onAddProperty: (
     name: string,
     type: string,

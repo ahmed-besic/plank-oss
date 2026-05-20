@@ -2,6 +2,7 @@ import type {
   BehaviorPackAuthoringMode,
   BehaviorCompileDiagnostic,
   BehaviorTargetType,
+  BoardViewConfigValue,
   CommentReactionKey,
   MentionRange,
   CardActivityKind,
@@ -9,6 +10,7 @@ import type {
   BoardTypeSummary,
   CardSummary,
   CardTypeSummary,
+  FeatureInstanceRef,
   TagDefinitionSummary,
   TraceStep,
   SimpleBehaviorRuleConfig,
@@ -77,6 +79,7 @@ export interface WorkspaceOverviewData {
       description?: string
       hooks: string[]
       capabilities: string[]
+      trustLevel?: 'builtin' | 'trusted-local' | 'restricted'
     }
     views: Array<{
       id: string
@@ -92,6 +95,28 @@ export interface WorkspaceOverviewData {
     status: 'enabled' | 'disabled'
   }>
   viewerUserId?: string
+}
+
+export interface PluginDiagnosticSummary {
+  id: string
+  pluginId?: string
+  kind:
+    | 'permission-denied'
+    | 'invalid-trust-level'
+    | 'handler-failed'
+    | 'handler-skipped'
+    | 'extension-status-changed'
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  permission?: string
+  handlerId?: string
+  eventId?: string
+  boardId?: string
+  cardId?: string
+  actorId?: string
+  previousStatus?: 'enabled' | 'disabled'
+  nextStatus?: 'enabled' | 'disabled'
+  createdAt: number
 }
 
 export interface BoardPageData {
@@ -134,12 +159,13 @@ export interface BoardPageData {
     definitionViewId?: string
     viewId: string
     pluginId?: string
+    featureInstance?: FeatureInstanceRef
     kind: string
     label: string
     orderKey: string
     isDefault: boolean
     instanceMode?: 'shared' | 'private'
-    config?: Record<string, unknown>
+    config?: BoardViewConfigValue
   }>
   activeViewInstanceId?: string
   activeDefinitionViewId?: string

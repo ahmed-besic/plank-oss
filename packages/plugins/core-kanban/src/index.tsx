@@ -1,8 +1,18 @@
-import { definePlugin } from "@plank/plugin-sdk";
-import type { PlankBoardTypeTemplate } from "@plank/plugin-sdk";
+import { defineClientPlugin } from "@plank/plugin-sdk";
+import type {
+  PlankBoardTypeTemplate,
+  UiExtensionRenderProps,
+} from "@plank/plugin-sdk";
 import { BoardView } from "./board-view";
 import { CardSummarySlot } from "./card-summary-slot";
 import { registerCorePropertyTypes } from "./property-editors";
+
+function StatusPanel(props: UiExtensionRenderProps) {
+  if (!props.card || !props.boardType) {
+    return null;
+  }
+  return <CardSummarySlot card={props.card} boardType={props.boardType} />;
+}
 
 export const coreKanbanBoardTemplate: PlankBoardTypeTemplate = {
   id: "core-kanban:default",
@@ -22,7 +32,7 @@ export const coreKanbanBoardTemplate: PlankBoardTypeTemplate = {
   version: 1,
 };
 
-export const coreKanbanPlugin = definePlugin(
+export const coreKanbanPlugin = defineClientPlugin(
   {
     id: "core-kanban",
     name: "Core Kanban",
@@ -31,22 +41,20 @@ export const coreKanbanPlugin = definePlugin(
       "registerView",
       "registerPropertyType",
       "registerCommand",
-      "registerCardSlot",
+      "registerUiExtension",
       "registerCardChange",
       "registerBoardTypeTemplate",
     ],
     capabilities: ["cards:read", "cards:write", "boardViews:read"],
+    trustLevel: "builtin",
     description: "The default board view and builtin property editors.",
   },
   ({
-    registerCardSlot,
-    registerBoardTypeTemplate,
     registerCommand,
     registerPropertyType,
+    registerUiExtension,
     registerView,
   }) => {
-    registerBoardTypeTemplate(coreKanbanBoardTemplate);
-
     registerView({
       id: "core-kanban:board",
       label: "Board",
@@ -81,10 +89,11 @@ export const coreKanbanPlugin = definePlugin(
       },
     });
 
-    registerCardSlot({
+    registerUiExtension({
       id: "core-kanban:status",
-      title: "Current status",
-      render: (props) => <CardSummarySlot {...props} />,
+      slot: "card.drawer.panels",
+      label: "Current status",
+      render: (props) => <StatusPanel {...props} />,
     });
   },
 );

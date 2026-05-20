@@ -1,5 +1,7 @@
 import { ChevronDown } from 'lucide-react'
-import type { PlankCardSlotDefinition } from '@plank/plugin-sdk'
+import { createPermissionedClientServices } from '@plank/plugin-runtime'
+import type { PlatformClientServices } from '@plank/plugin-sdk'
+import type { ResolvedUiExtension } from '../lib/plugin-ui-extensions'
 import type { BoardPageData } from '../lib/types'
 
 export function CardDrawerPluginSlots({
@@ -10,20 +12,24 @@ export function CardDrawerPluginSlots({
   expandedPluginSlotId,
   propertyValues,
   selectedTagIds,
+  services,
   setExpandedPluginSlotId,
   tagDefinitions,
   title,
+  workspaceSlug,
 }: {
-  activePluginSlots: PlankCardSlotDefinition[]
+  activePluginSlots: ResolvedUiExtension[]
   boardType: BoardPageData['boardType']
   card: BoardPageData['cards'][number]
   cardType?: BoardPageData['cardTypes'][number]
   expandedPluginSlotId: string | null
   propertyValues: Record<string, unknown>
   selectedTagIds: string[]
+  services?: PlatformClientServices
   setExpandedPluginSlotId: (value: string | null) => void
   tagDefinitions: BoardPageData['tagDefinitions']
   title: string
+  workspaceSlug: string
 }) {
   if (!activePluginSlots.length) {
     return null
@@ -32,28 +38,37 @@ export function CardDrawerPluginSlots({
   return (
     <div className="border-t border-zinc-100 bg-white px-4 py-2">
       <div className="flex items-center gap-2 overflow-x-auto">
-        {activePluginSlots.map((slot) => {
-          const expanded = expandedPluginSlotId === slot.id
+        {activePluginSlots.map(({ extension, plugin, pluginId }) => {
+          const panelId = `${pluginId}:${extension.id}`
+          const expanded = expandedPluginSlotId === panelId
+          const pluginServices = services
+            ? createPermissionedClientServices({ plugin, services })
+            : undefined
           return (
             <div
-              key={slot.id}
+              key={panelId}
               className="rounded-lg border border-zinc-200/80 bg-zinc-50/70"
             >
               <button
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:text-zinc-900"
                 onClick={() =>
-                  setExpandedPluginSlotId(expanded ? null : slot.id)
+                  setExpandedPluginSlotId(expanded ? null : panelId)
                 }
                 type="button"
               >
-                {slot.title}
+                {extension.label}
                 <ChevronDown
                   className={`h-3.5 w-3.5 transition ${expanded ? 'rotate-180' : ''}`}
                 />
               </button>
               {expanded ? (
                 <div className="max-h-28 overflow-auto border-t border-zinc-200/80 px-2.5 py-2 text-sm">
-                  {slot.render({
+                  {extension.render({
+                    slot: 'card.drawer.panels',
+                    pluginId,
+                    workspaceSlug,
+                    boardId: card.boardId,
+                    services: pluginServices,
                     card: {
                       ...card,
                       title,

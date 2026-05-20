@@ -5,7 +5,7 @@ import {
   createKeyAfter,
   type WorkspaceRole,
 } from "@plank/domain";
-import { builtinPluginRegistry } from "@plank/plugin-runtime";
+import { builtinServerPluginRegistry } from "@plank/plugin-runtime/server";
 import { createBoardType, deleteStatus } from "./boardTypes";
 import {
   addBoardView,
@@ -45,11 +45,12 @@ import {
   removeMember,
   resendInvite,
   revokeInvite,
+  setExtensionStatus,
   updateMemberRole,
 } from "./workspaces";
 import { MockConvexDb, createMockCtx } from "./test_helpers";
 
-const taskBoardPlugin = builtinPluginRegistry.pluginMap.get("task-board");
+const taskBoardPlugin = builtinServerPluginRegistry.pluginMap.get("task-board");
 if (!taskBoardPlugin?.cardTypeManifests[0]) {
   throw new Error("Missing task-board card type manifest");
 }
@@ -576,7 +577,7 @@ describe("board functions", () => {
     });
   });
 
-  it("updates persisted board view config without mutating the view structure", async () => {
+  it("updates persisted board view config with a versioned envelope", async () => {
     const db = createBaseDb();
     db.rows("boardViews").push({
       _id: "boardView_1",
@@ -612,8 +613,202 @@ describe("board functions", () => {
       viewId: "calendar-board:month",
       label: "Calendar",
       config: {
+        schemaVersion: 1,
+        viewId: "calendar-board:month",
+        value: {
+          dateFieldKey: "dueDate",
+        },
+      },
+    });
+  });
+
+  it("persists typed state envelopes for new board types and boards", async () => {
+    const db = createBaseDb();
+    const ctx = createMockCtx({ db });
+
+    const boardTypeResult = await (
+      createBoardType as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<{ boardTypeId: string }>
+    )(ctx, {
+      workspaceSlug: "acme",
+      name: "Focus board",
+      templateRef: {
+        pluginId: "task-board",
+        templateId: "task-board:default",
+        version: 1,
+      },
+    });
+
+    const boardResult = await (
+      createBoard as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<{ boardId: string }>
+    )(ctx, {
+      workspaceSlug: "acme",
+      name: "Typed state board",
+      boardTypeId: boardTypeResult.boardTypeId,
+    });
+
+    expect(db.rows("boardTypes").at(-1)).toMatchObject({
+      viewDefaults: {
+        schemaVersion: 1,
+        value: {
+          defaultViewIds: ["task-board:board"],
+        },
+      },
+    });
+    expect(db.rows("boards").find((board) => board._id === boardResult.boardId)).toMatchObject({
+      boardSettings: {
+        schemaVersion: 1,
+        value: {},
+      },
+    });
+  });
+
+  it("persists extension config envelopes and admin diagnostics when toggling extensions", async () => {
+    const db = createBaseDb();
+    const ctx = createMockCtx({ db });
+
+    await (
+      setExtensionStatus as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      pluginId: "focus-tools",
+      status: "enabled",
+    });
+
+    expect(db.rows("workspaceExtensions").at(-1)).toMatchObject({
+      pluginId: "focus-tools",
+      config: {
+        schemaVersion: 1,
+        pluginPackageId: "focus-tools",
+        value: {},
+      },
+    });
+    expect(db.rows("pluginDiagnostics").at(-1)).toMatchObject({
+      pluginId: "focus-tools",
+      kind: "extension-status-changed",
+      severity: "info",
+      actorId: "user_1",
+      nextStatus: "enabled",
+    });
+  });
+
+  it("rejects unsupported board view config keys for known views", async () => {
+    const db = createBaseDb();
+    db.rows("boardViews").push({
+      _id: "boardView_1",
+      workspaceId: "workspace_1",
+      boardId: "board_1",
+      viewId: "calendar-board:month",
+      instanceId: "calendar-board:month:shared",
+      definitionViewId: "calendar-board:month",
+      instanceMode: "shared",
+      pluginId: "calendar-board",
+      kind: "core",
+      label: "Calendar",
+      orderKey: "a0",
+      isDefault: false,
+    });
+    const ctx = createMockCtx({ db });
+
+    await expect(
+      (
+        updateBoardViewConfig as unknown as (
+          ctx: unknown,
+          args: unknown,
+        ) => Promise<any>
+      )(ctx, {
+        workspaceSlug: "acme",
+        boardId: "board_1",
+        instanceId: "calendar-board:month:shared",
+        config: {
+          dateFieldKey: "dueDate",
+          inboxVisible: true,
+        },
+      }),
+    ).rejects.toThrow("Unsupported board view config key");
+  });
+
+  it("rejects invalid kanban board view config value types", async () => {
+    const db = createBaseDb();
+    db.rows("boardViews").push({
+      _id: "boardView_1",
+      workspaceId: "workspace_1",
+      boardId: "board_1",
+      viewId: "core-kanban:board",
+      instanceId: "core-kanban:board:shared",
+      definitionViewId: "core-kanban:board",
+      instanceMode: "shared",
+      pluginId: "core-kanban",
+      kind: "core",
+      label: "Board",
+      orderKey: "a0",
+      isDefault: true,
+    });
+    const ctx = createMockCtx({ db });
+
+    await expect(
+      (
+        updateBoardViewConfig as unknown as (
+          ctx: unknown,
+          args: unknown,
+        ) => Promise<any>
+      )(ctx, {
+        workspaceSlug: "acme",
+        boardId: "board_1",
+        instanceId: "core-kanban:board:shared",
+        config: {
+          inboxVisible: "yes",
+        },
+      }),
+    ).rejects.toThrow("inboxVisible must be a boolean");
+  });
+
+  it("unwraps legacy board view config when loading the board page", async () => {
+    const db = createBaseDb();
+    db.rows("boardViews").push({
+      _id: "boardView_1",
+      workspaceId: "workspace_1",
+      boardId: "board_1",
+      viewId: "calendar-board:month",
+      instanceId: "calendar-board:month:shared",
+      definitionViewId: "calendar-board:month",
+      instanceMode: "shared",
+      pluginId: "calendar-board",
+      kind: "core",
+      label: "Calendar",
+      orderKey: "a0",
+      isDefault: true,
+      config: {
         dateFieldKey: "dueDate",
       },
+    });
+    const ctx = createMockCtx({ db });
+
+    const boardPage = await (
+      getBoardPage as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+    });
+
+    expect(boardPage.views[0]?.config).toEqual({
+      dateFieldKey: "dueDate",
+    });
+    expect(boardPage.views[0]?.featureInstance).toEqual({
+      schemaVersion: 1,
+      kind: "view",
+      pluginPackageId: "calendar-board",
+      featureId: "calendar-board:month",
+      instanceId: "calendar-board:month:shared",
+      instanceMode: "shared",
     });
   });
 
@@ -1044,6 +1239,25 @@ describe("board functions", () => {
       "task-board:board",
       "core-kanban:board",
     ]);
+    expect(boardPageWithKanban.views.at(-1)?.featureInstance).toMatchObject({
+      schemaVersion: 1,
+      kind: "view",
+      pluginPackageId: "core-kanban",
+      featureId: "core-kanban:board",
+      instanceMode: "shared",
+    });
+    expect(
+      db
+        .rows("boardViews")
+        .find((view) => view.definitionViewId === "core-kanban:board")
+        ?.featureInstance,
+    ).toMatchObject({
+      schemaVersion: 1,
+      kind: "view",
+      pluginPackageId: "core-kanban",
+      featureId: "core-kanban:board",
+      instanceMode: "shared",
+    });
     expect(boardPageWithKanban.cards.map((entry: any) => entry.id)).toEqual([
       card.cardId,
     ]);
@@ -1081,10 +1295,21 @@ describe("board functions", () => {
       .map((view) => ({
         viewId: view.viewId,
         isDefault: view.isDefault,
+        featureInstance: view.featureInstance,
       }));
 
     expect(boardViews).toEqual([
-      { viewId: "calendar-board:month", isDefault: true },
+      {
+        viewId: "calendar-board:month",
+        isDefault: true,
+        featureInstance: expect.objectContaining({
+          schemaVersion: 1,
+          kind: "view",
+          pluginPackageId: "calendar-board",
+          featureId: "calendar-board:month",
+          instanceMode: "shared",
+        }),
+      },
     ]);
   });
 

@@ -1,5 +1,5 @@
 import {
-  definePlugin,
+  defineClientPlugin,
   type PlankBoardTypeTemplate,
   type ViewRenderProps,
 } from "@plank/plugin-sdk";
@@ -435,18 +435,17 @@ function CalendarMonthView(props: ViewRenderProps) {
   );
 }
 
-export const calendarBoardPlugin = definePlugin(
+export const calendarBoardPlugin = defineClientPlugin(
   {
     id: "calendar-board",
     name: "Calendar Board",
     version: "1.0.0",
     hooks: ["registerView", "registerBoardTypeTemplate"],
     capabilities: ["cards:read", "cards:write", "boardViews:read"],
+    trustLevel: "builtin",
     description: "Adds a month calendar view over timestamp fields.",
   },
-  ({ registerBoardTypeTemplate, registerView }) => {
-    registerBoardTypeTemplate(calendarBoardTemplate);
-
+  ({ registerView }) => {
     registerView({
       id: "calendar-board:month",
       label: "Calendar",

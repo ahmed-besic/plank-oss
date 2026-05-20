@@ -1,4 +1,7 @@
-import type { PropertyEditorProps, RegisterPluginApi } from "@plank/plugin-sdk";
+import type {
+  PropertyEditorProps,
+  RegisterClientPluginApi,
+} from "@plank/plugin-sdk";
 import { ChevronDown } from "lucide-react";
 
 function getMemberLabel(member: PropertyEditorProps["members"][number]) {
@@ -101,7 +104,7 @@ const CORE_PROPERTY_TYPES = [
 ] as const;
 
 export function registerCorePropertyTypes(
-  registerPropertyType: RegisterPluginApi["registerPropertyType"],
+  registerPropertyType: RegisterClientPluginApi["registerPropertyType"],
 ) {
   for (const propertyType of CORE_PROPERTY_TYPES) {
     registerPropertyType(propertyType);

@@ -1,17 +1,24 @@
 import { compareOrderKeys, createKeyAfter } from "@plank/domain";
 import {
-	builtinPluginRegistry,
 	dispatchCardEvent,
 	getEnabledPluginIds,
+} from "@plank/plugin-runtime";
+import {
+	builtinServerPluginRegistry,
 	isRequiredBuiltinPluginId,
 	requiredBuiltinPluginIds,
-} from "@plank/plugin-runtime";
+} from "@plank/plugin-runtime/server";
 import { runBehaviorRuntimeForEvent } from "./behaviors/runtime";
+import { createPluginServerApi } from "./pluginServerApi";
+import { unwrapWorkspaceExtensionConfig } from "./persistedState";
+import { persistRuntimeDiagnostics } from "./pluginDiagnostics";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import type {
 	CardActivityProjectionEntry,
 	CardEventPayload,
+	FeatureInstanceRef,
+	WorkspaceExtensionState,
 } from "@plank/domain";
 
 type AnyCtx = QueryCtx | MutationCtx;
@@ -28,6 +35,7 @@ interface BoardViewSnapshot {
 	definitionViewId?: string;
 	instanceMode?: "shared" | "private";
 	pluginId?: string;
+	featureInstance?: FeatureInstanceRef;
 	kind: string;
 	label: string;
 	orderKey: string;
@@ -39,6 +47,7 @@ export interface NormalizedBoardViewSnapshot extends BoardViewSnapshot {
 	instanceId: string;
 	definitionViewId: string;
 	instanceMode: "shared" | "private";
+	featureInstance: FeatureInstanceRef;
 }
 
 function normalizeDefinitionViewId(viewId: string) {
@@ -83,16 +92,16 @@ async function projectWorkflowEventToCardChangeEvents(
 }
 
 export function listBuiltinPlugins() {
-	return builtinPluginRegistry.plugins
+	return builtinServerPluginRegistry.plugins
 		.filter((plugin) => !isRequiredBuiltinPluginId(plugin.manifest.id))
 		.map((plugin) => ({
 			manifest: plugin.manifest,
-			views: plugin.views.map((view) => ({
+			views: (plugin.clientSummaries?.views ?? []).map((view) => ({
 				id: view.id,
 				label: view.label,
 				description: view.description,
 			})),
-			propertyTypes: plugin.propertyTypes.map((propertyType) => ({
+			propertyTypes: (plugin.clientSummaries?.propertyTypes ?? []).map((propertyType) => ({
 				id: propertyType.id,
 				label: propertyType.label,
 				description: propertyType.description,
@@ -125,15 +134,64 @@ export function normalizeBoardView(
 		normalizedViewId === CANONICAL_CORE_BOARD_VIEW_ID ? "core" : view.kind;
 	const label =
 		normalizedViewId === CANONICAL_CORE_BOARD_VIEW_ID ? "Board" : view.label;
+	const instanceId = view.featureInstance?.instanceId ??
+		view.instanceId ??
+		String(view._id ?? `${definitionViewId}:shared`);
+	const instanceMode = view.featureInstance?.instanceMode ??
+		view.instanceMode ??
+		"shared";
+	const featureInstance = createBoardViewFeatureInstance({
+		definitionViewId,
+		instanceId,
+		instanceMode,
+		pluginId,
+	});
 	return {
 		...view,
 		viewId: normalizedViewId,
 		definitionViewId,
-		instanceId: view.instanceId ?? String(view._id ?? `${definitionViewId}:shared`),
-		instanceMode: view.instanceMode ?? "shared",
+		instanceId,
+		instanceMode,
 		pluginId,
+		featureInstance,
 		kind,
 		label,
+	};
+}
+
+export function createBoardViewFeatureInstance({
+	definitionViewId,
+	instanceId,
+	instanceMode,
+	pluginId,
+}: {
+	definitionViewId: string;
+	instanceId: string;
+	instanceMode: "shared" | "private";
+	pluginId?: string;
+}): FeatureInstanceRef {
+	return {
+		schemaVersion: 1,
+		kind: "view",
+		pluginPackageId: pluginId ?? "core",
+		featureId: definitionViewId,
+		instanceId,
+		instanceMode,
+	};
+}
+
+export function normalizeWorkspaceExtensionState(
+	record: Pick<
+		Doc<"workspaceExtensions">,
+		"pluginId" | "status" | "config" | "installedAt" | "updatedAt"
+	>,
+): WorkspaceExtensionState {
+	return {
+		pluginPackageId: record.pluginId,
+		status: record.status,
+		config: unwrapWorkspaceExtensionConfig(record.config),
+		installedAt: record.installedAt,
+		updatedAt: record.updatedAt,
 	};
 }
 
@@ -148,8 +206,8 @@ export function getCardScopeId(card: { scopeId?: string | null }) {
 }
 
 export function getViewDefinitionById(definitionViewId: string) {
-	for (const plugin of builtinPluginRegistry.plugins) {
-		const view = plugin.views.find(
+	for (const plugin of builtinServerPluginRegistry.plugins) {
+		const view = (plugin.clientSummaries?.views ?? []).find(
 			(candidate) => candidate.id === definitionViewId,
 		);
 		if (view) {
@@ -250,7 +308,7 @@ export function getSeededBoardViews({
 	);
 	const existingDefault = normalizedExisting.find((view) => view.isDefault);
 
-	const seededViews = builtinPluginRegistry.plugins.flatMap((plugin) => {
+	const seededViews = builtinServerPluginRegistry.plugins.flatMap((plugin) => {
 		const pluginIsActive =
 			activeIds.has(plugin.manifest.id) ||
 			isRequiredBuiltinPluginId(plugin.manifest.id);
@@ -258,7 +316,7 @@ export function getSeededBoardViews({
 			return [];
 		}
 
-		return plugin.views
+		return (plugin.clientSummaries?.views ?? [])
 			.filter((view) => !allowedIds || allowedIds.has(view.id))
 			.filter((view) => (view.sharingPolicy ?? DEFAULT_VIEW_SHARING_POLICY) !== "force_private")
 			.filter((view) => {
@@ -361,6 +419,12 @@ export async function ensureBoardViewsForBoard(
 			definitionViewId: view.definitionViewId,
 			instanceMode: view.instanceMode,
 			pluginId: view.pluginId,
+			featureInstance: createBoardViewFeatureInstance({
+				definitionViewId: view.definitionViewId,
+				instanceId: view.instanceId,
+				instanceMode: view.instanceMode,
+				pluginId: view.pluginId,
+			}),
 			kind: view.kind,
 			label: view.label,
 			orderKey,
@@ -512,17 +576,29 @@ export async function emitCardEvent(
 		}
 	}
 
-	await dispatchCardEvent({
-		registry: builtinPluginRegistry,
+	const dispatchResult = await dispatchCardEvent({
+		registry: builtinServerPluginRegistry,
 		enabledPluginIds: getActivePluginIds(
 			records.map((record) => ({
 				pluginId: record.pluginId,
 				status: record.status,
 			})),
 		),
-			event: persistedEvent,
-			extra: {},
-		});
+		event: persistedEvent,
+		getExtraForPlugin: (plugin) => ({
+			api: createPluginServerApi({
+				ctx,
+				plugin,
+				workspaceId,
+			}),
+		}),
+	});
+	await persistRuntimeDiagnostics({
+		ctx,
+		diagnostics: dispatchResult.diagnostics,
+		event: persistedEvent,
+		workspaceId,
+	});
 
 	const runtime = await runBehaviorRuntimeForEvent({
 		ctx,

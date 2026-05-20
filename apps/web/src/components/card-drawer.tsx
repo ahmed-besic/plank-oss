@@ -34,7 +34,6 @@ import {
   getTagDotStyle,
 } from '@plank/ui'
 import { getMemberDisplayName } from '../lib/member-display'
-import { CardCommentsPanel } from './card-comments-panel'
 import { clearCardDraft } from './card-drawer-draft'
 import { CardDrawerPluginSlots } from './card-drawer-plugin-slots'
 import {
@@ -188,6 +187,7 @@ export function CardDrawer(props: CardDrawerProps) {
 function GenericCardDrawer({
   activePluginPropertyTypes,
   activePluginSlots,
+  platformServices,
   boardType,
   cardType,
   tagDefinitions,
@@ -198,6 +198,7 @@ function GenericCardDrawer({
   commentsOpen = false,
   highlightedCommentId,
   focusTarget,
+  renderCollaborationPanel,
   onAddProperty,
   onDeleteCard,
   onDeleteProperty,
@@ -415,30 +416,30 @@ function GenericCardDrawer({
               maxWidth: `calc(100vw - ${drawerWidth}px - 2rem)`,
             }}
           >
-            <CardCommentsPanel
-              boardId={card.boardId}
-              cardId={persistedCardId}
-              highlightedCommentId={highlightedCommentId}
-              isOpen={commentsOpen}
-              members={members}
-              onClose={onCloseComments}
-              standalone
-              viewerUserId={viewerUserId}
-              workspaceSlug={workspaceSlug}
-            />
+            {renderCollaborationPanel?.({
+              boardId: card.boardId,
+              cardId: persistedCardId,
+              highlightedCommentId,
+              isOpen: commentsOpen,
+              members,
+              onClose: onCloseComments,
+              standalone: true,
+              viewerUserId,
+              workspaceSlug,
+            })}
           </div>
           <div className="fixed inset-2 z-[60] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl md:hidden">
-            <CardCommentsPanel
-              boardId={card.boardId}
-              cardId={persistedCardId}
-              highlightedCommentId={highlightedCommentId}
-              isOpen={commentsOpen}
-              members={members}
-              onClose={onCloseComments}
-              standalone
-              viewerUserId={viewerUserId}
-              workspaceSlug={workspaceSlug}
-            />
+            {renderCollaborationPanel?.({
+              boardId: card.boardId,
+              cardId: persistedCardId,
+              highlightedCommentId,
+              isOpen: commentsOpen,
+              members,
+              onClose: onCloseComments,
+              standalone: true,
+              viewerUserId,
+              workspaceSlug,
+            })}
           </div>
         </>
       ) : null}
@@ -1208,9 +1209,11 @@ function GenericCardDrawer({
             expandedPluginSlotId={expandedPluginSlotId}
             propertyValues={propertyValues}
             selectedTagIds={selectedTagIds}
+            services={platformServices}
             setExpandedPluginSlotId={setExpandedPluginSlotId}
             tagDefinitions={tagDefinitions}
             title={title}
+            workspaceSlug={workspaceSlug}
           />
         </div>
       </div>

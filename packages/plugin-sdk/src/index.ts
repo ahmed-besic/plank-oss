@@ -1,19 +1,82 @@
 import type { ReactNode } from "react";
 import type {
 	BoardTypeSummary,
+	BoardViewConfigValue,
 	CardTypeManifest,
 	CardEventPayload,
 	CardPropertyDefinitionSummary,
 	CardSummary,
 	CardTypeSummary,
+	FeatureInstanceRef,
 	LifecycleStatus,
+	PluginFeatureKind,
 	PluginManifest,
+	PluginRuntimePermission,
 	TagDefinitionSummary,
 	ViewSharingPolicy,
 	WorkspaceMemberSummary,
 	ViewCapabilities,
 } from "@plank/domain";
 export type { CardTypeManifest } from "@plank/domain";
+
+export type PlatformPermission = PluginRuntimePermission;
+export type PlatformUiSlotId =
+	| "shell.sidebar.navigation"
+	| "board.header.actions"
+	| "card.drawer.panels"
+	| "settings.workspace.panels";
+
+export interface PlatformServerCardSummary {
+	id: string;
+	workspaceId: string;
+	boardId: string;
+	typeKey: string;
+	statusKey: string;
+	title: string;
+	properties: Record<string, unknown>;
+	updatedAt: number;
+}
+
+export interface PlatformServerServices {
+	cards: {
+		get: (cardId: string) => Promise<PlatformServerCardSummary | null>;
+	};
+}
+
+export interface PlatformClientServices {
+	navigation: {
+		openCard: (cardId: string) => void;
+		navigate: (options: {
+			to: string;
+			search?: Record<string, unknown>;
+		}) => void;
+	};
+	cards: {
+		create: (
+			title: string,
+			columnId?: string,
+			typeKey?: string,
+			parentId?: string,
+		) => Promise<string | undefined | void>;
+		update: BoardViewActions["updateCard"];
+		move: BoardViewActions["moveCard"];
+		open: (cardId: string) => void;
+	};
+	properties: {
+		add: (
+			name: string,
+			type: string,
+			config?: Record<string, unknown>,
+			typeKey?: string,
+		) => Promise<void>;
+	};
+	views: {
+		updateConfig: (config: BoardViewConfigValue) => Promise<void>;
+	};
+	toast: {
+		show: (message: string) => void;
+	};
+}
 
 export interface BoardViewActions {
 	createCard: (
@@ -59,8 +122,9 @@ export interface ViewRenderProps {
 	viewInstanceId?: string;
 	viewMode?: "shared" | "private";
 	viewLabel: string;
-	viewConfig?: Record<string, unknown>;
-	updateViewConfig?: (config: Record<string, unknown>) => Promise<void>;
+	viewConfig?: BoardViewConfigValue;
+	featureInstance?: FeatureInstanceRef;
+	updateViewConfig?: (config: BoardViewConfigValue) => Promise<void>;
 	boardType: BoardTypeSummary;
 	columns: Array<{
 		id: string;
@@ -75,6 +139,7 @@ export interface ViewRenderProps {
 	ui?: {
 		unreadCardIds?: string[];
 	};
+	services?: PlatformClientServices;
 	actions: BoardViewActions;
 }
 
@@ -85,11 +150,17 @@ export interface PropertyEditorProps {
 	members: WorkspaceMemberSummary[];
 }
 
-export interface CardSlotProps {
-	card: CardSummary;
-	boardType: BoardTypeSummary;
+export interface UiExtensionRenderProps {
+	slot: PlatformUiSlotId;
+	pluginId: string;
+	workspaceSlug?: string;
+	boardId?: string;
+	services?: PlatformClientServices;
+	boardType?: BoardTypeSummary;
+	card?: CardSummary;
 	cardType?: CardTypeSummary;
-	tagDefinitions: TagDefinitionSummary[];
+	tagDefinitions?: TagDefinitionSummary[];
+	members?: WorkspaceMemberSummary[];
 }
 
 export interface CommandContext {
@@ -108,6 +179,7 @@ export interface CommandContext {
 		search?: Record<string, unknown>;
 	}) => void;
 	toast?: (message: string) => void;
+	services: PlatformClientServices;
 }
 
 export interface CardChangeContext<TExtra = Record<string, never>> {
@@ -152,10 +224,13 @@ export interface PlankCommandDefinition {
 	run: (context: CommandContext) => Promise<void> | void;
 }
 
-export interface PlankCardSlotDefinition {
+export interface PlankUiExtensionDefinition {
 	id: string;
-	title: string;
-	render: (props: CardSlotProps) => ReactNode;
+	slot: PlatformUiSlotId;
+	label: string;
+	order?: number;
+	requiredPermissions?: PlatformPermission[];
+	render: (props: UiExtensionRenderProps) => ReactNode;
 }
 
 export interface PlankCardChangeHandler<TExtra = Record<string, never>> {
@@ -164,63 +239,252 @@ export interface PlankCardChangeHandler<TExtra = Record<string, never>> {
 	handle: (context: CardChangeContext<TExtra>) => Promise<void> | void;
 }
 
-export interface RegisterPluginApi<TExtra = Record<string, never>> {
+export type PlankClientPluginFeature =
+	| {
+			kind: "view";
+			id: string;
+			definition: PlankViewDefinition;
+	  }
+	| {
+			kind: "propertyType";
+			id: string;
+			definition: PlankPropertyTypeDefinition;
+	  }
+	| {
+			kind: "command";
+			id: string;
+			definition: PlankCommandDefinition;
+	  }
+	| {
+			kind: "uiExtension";
+			id: string;
+			definition: PlankUiExtensionDefinition;
+	  };
+
+export type PlankServerPluginFeature<TExtra = Record<string, never>> =
+	| {
+			kind: "cardType";
+			id: string;
+			definition: CardTypeManifest;
+	  }
+	| {
+			kind: "boardTypeTemplate";
+			id: string;
+			definition: PlankBoardTypeTemplate;
+	  }
+	| {
+			kind: "cardChangeHandler";
+			id: string;
+			definition: PlankCardChangeHandler<TExtra>;
+	  };
+
+export type PlankPluginFeature<TExtra = any> =
+	| PlankClientPluginFeature
+	| PlankServerPluginFeature<TExtra>;
+
+export interface RegisterClientPluginApi {
 	registerView: (definition: PlankViewDefinition) => void;
 	registerPropertyType: (definition: PlankPropertyTypeDefinition) => void;
 	registerCommand: (definition: PlankCommandDefinition) => void;
-	registerCardSlot: (definition: PlankCardSlotDefinition) => void;
+	registerUiExtension: (definition: PlankUiExtensionDefinition) => void;
+	registerFeature: (feature: PlankClientPluginFeature) => void;
+}
+
+export interface RegisterServerPluginApi<TExtra = Record<string, never>> {
 	registerCardChange: (definition: PlankCardChangeHandler<TExtra>) => void;
 	registerBoardTypeTemplate: (definition: PlankBoardTypeTemplate) => void;
 	registerCardTypeManifest: (definition: CardTypeManifest) => void;
+	registerFeature: (feature: PlankServerPluginFeature<TExtra>) => void;
 }
 
-export interface PlankPlugin<TExtra = Record<string, never>> {
+export interface PlankClientPlugin {
 	manifest: PluginManifest;
+	features: PlankPluginFeature[];
 	views: PlankViewDefinition[];
 	propertyTypes: PlankPropertyTypeDefinition[];
 	commands: PlankCommandDefinition[];
-	cardSlots: PlankCardSlotDefinition[];
+	uiExtensions: PlankUiExtensionDefinition[];
+}
+
+export interface PlankServerPlugin<TExtra = Record<string, never>> {
+	manifest: PluginManifest;
+	features: PlankPluginFeature<TExtra>[];
 	cardChangeHandlers: PlankCardChangeHandler<TExtra>[];
 	boardTypeTemplates: PlankBoardTypeTemplate[];
 	cardTypeManifests: CardTypeManifest[];
+	clientSummaries?: {
+		views?: Array<
+			Pick<
+				PlankViewDefinition,
+				| "id"
+				| "label"
+				| "description"
+				| "sharingPolicy"
+				| "seedMode"
+				| "defaultForBoard"
+			>
+		>;
+		propertyTypes?: Array<
+			Pick<PlankPropertyTypeDefinition, "id" | "label" | "description">
+		>;
+	};
 }
 
-export function definePlugin<TExtra = Record<string, never>>(
+function createFeature<K extends PluginFeatureKind, D>(
+	kind: K,
+	id: string,
+	definition: D,
+) {
+	return { kind, id, definition };
+}
+
+export function defineViewFeature(
+	definition: PlankViewDefinition,
+): PlankClientPluginFeature {
+	return createFeature("view", definition.id, definition);
+}
+
+export function definePropertyTypeFeature(
+	definition: PlankPropertyTypeDefinition,
+): PlankClientPluginFeature {
+	return createFeature("propertyType", definition.id, definition);
+}
+
+export function defineCommandFeature(
+	definition: PlankCommandDefinition,
+): PlankClientPluginFeature {
+	return createFeature("command", definition.id, definition);
+}
+
+export function defineUiExtensionFeature(
+	definition: PlankUiExtensionDefinition,
+): PlankClientPluginFeature {
+	return createFeature("uiExtension", definition.id, definition);
+}
+
+export function defineCardTypeFeature(
+	definition: CardTypeManifest,
+): PlankServerPluginFeature<any> {
+	return createFeature("cardType", definition.typeKey, definition);
+}
+
+export function defineBoardTypeTemplateFeature(
+	definition: PlankBoardTypeTemplate,
+): PlankServerPluginFeature<any> {
+	return createFeature("boardTypeTemplate", definition.id, definition);
+}
+
+export function defineCardChangeFeature<TExtra = Record<string, never>>(
+	definition: PlankCardChangeHandler<TExtra>,
+): PlankServerPluginFeature<TExtra> {
+	return createFeature("cardChangeHandler", definition.id, definition);
+}
+
+function applyClientFeature(
+	plugin: Pick<
+		PlankClientPlugin,
+		"features" | "views" | "propertyTypes" | "commands" | "uiExtensions"
+	>,
+	feature: PlankClientPluginFeature,
+) {
+	plugin.features.push(feature);
+	switch (feature.kind) {
+		case "view":
+			plugin.views.push(feature.definition);
+			break;
+		case "propertyType":
+			plugin.propertyTypes.push(feature.definition);
+			break;
+		case "command":
+			plugin.commands.push(feature.definition);
+			break;
+		case "uiExtension":
+			plugin.uiExtensions.push(feature.definition);
+			break;
+	}
+}
+
+function applyServerFeature<TExtra>(
+	plugin: Pick<
+		PlankServerPlugin<TExtra>,
+		"features" | "cardTypeManifests" | "boardTypeTemplates" | "cardChangeHandlers"
+	>,
+	feature: PlankServerPluginFeature<TExtra>,
+) {
+	plugin.features.push(feature);
+	switch (feature.kind) {
+		case "cardType":
+			plugin.cardTypeManifests.push(feature.definition);
+			break;
+		case "boardTypeTemplate":
+			plugin.boardTypeTemplates.push(feature.definition);
+			break;
+		case "cardChangeHandler":
+			plugin.cardChangeHandlers.push(feature.definition);
+			break;
+	}
+}
+
+export function defineClientPlugin(
 	manifest: PluginManifest,
-	register: (api: RegisterPluginApi<TExtra>) => void,
-): PlankPlugin<TExtra> {
-	const plugin: PlankPlugin<TExtra> = {
+	register: (api: RegisterClientPluginApi) => void,
+): PlankClientPlugin {
+	const plugin: PlankClientPlugin = {
 		manifest,
+		features: [],
 		views: [],
 		propertyTypes: [],
 		commands: [],
-		cardSlots: [],
-		cardChangeHandlers: [],
-		boardTypeTemplates: [],
-		cardTypeManifests: [],
+		uiExtensions: [],
 	};
 
 	register({
 		registerView(definition) {
-			plugin.views.push(definition);
+			applyClientFeature(plugin, defineViewFeature(definition));
 		},
 		registerPropertyType(definition) {
-			plugin.propertyTypes.push(definition);
+			applyClientFeature(plugin, definePropertyTypeFeature(definition));
 		},
 		registerCommand(definition) {
-			plugin.commands.push(definition);
+			applyClientFeature(plugin, defineCommandFeature(definition));
 		},
-		registerCardSlot(definition) {
-			plugin.cardSlots.push(definition);
+		registerUiExtension(definition) {
+			applyClientFeature(plugin, defineUiExtensionFeature(definition));
 		},
+		registerFeature(feature) {
+			applyClientFeature(plugin, feature);
+		},
+	});
+
+	return plugin;
+}
+
+export function defineServerPlugin<TExtra = Record<string, never>>(
+	manifest: PluginManifest,
+	register: (api: RegisterServerPluginApi<TExtra>) => void,
+	options: Pick<PlankServerPlugin<TExtra>, "clientSummaries"> = {},
+): PlankServerPlugin<TExtra> {
+	const plugin: PlankServerPlugin<TExtra> = {
+		manifest,
+		features: [],
+		cardChangeHandlers: [],
+		boardTypeTemplates: [],
+		cardTypeManifests: [],
+		clientSummaries: options.clientSummaries,
+	};
+
+	register({
 		registerCardChange(definition) {
-			plugin.cardChangeHandlers.push(definition);
+			applyServerFeature(plugin, defineCardChangeFeature<TExtra>(definition));
 		},
 		registerBoardTypeTemplate(definition) {
-			plugin.boardTypeTemplates.push(definition);
+			applyServerFeature(plugin, defineBoardTypeTemplateFeature(definition));
 		},
 		registerCardTypeManifest(definition) {
-			plugin.cardTypeManifests.push(definition);
+			applyServerFeature(plugin, defineCardTypeFeature(definition));
+		},
+		registerFeature(feature) {
+			applyServerFeature(plugin, feature);
 		},
 	});
 

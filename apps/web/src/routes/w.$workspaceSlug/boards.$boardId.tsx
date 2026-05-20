@@ -29,6 +29,9 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Input, cn } from '@plank/ui'
+import type { BoardViewConfigScalar } from '@plank/domain'
+import type { PlatformClientServices } from '@plank/plugin-sdk'
+import { createPermissionedClientServices } from '@plank/plugin-runtime'
 import { toast } from 'sonner'
 import { api } from '@convex/_generated/api'
 import type { Id } from '@convex/_generated/dataModel'
@@ -36,7 +39,10 @@ import { CardDrawer } from '../../components/card-drawer'
 import { WorkspaceShell } from '../../components/workspace-shell'
 import { CommandPalette } from '../../components/command-palette'
 import type { CommandPaletteItem } from '../../components/command-palette'
+import { CardCommentsPanel } from '../../features/collaboration/CardCommentsPanel'
 import { useBoardActions } from '../../lib/use-board-actions'
+import { createBoardPlatformServices } from '../../lib/plugin-platform-services'
+import { collectEnabledUiExtensions } from '../../lib/plugin-ui-extensions'
 import { useHydrated } from '../../lib/use-hydrated'
 import { useOnlineState } from '../../lib/use-online-state'
 import { usePlankApp } from '../../lib/providers'
@@ -67,6 +73,21 @@ type BoardUtilityPage = 'none' | 'extensions' | 'activity'
 type ExtensionCategory = 'all' | 'core' | 'productivity' | 'automation'
 const BOARD_PRESENCE_ACTIVE_MS = 90_000
 const BOARD_PRESENCE_HEARTBEAT_MS = 45_000
+
+function toBoardViewConfigScalars(values: Record<string, unknown>) {
+  const scalars: Record<string, BoardViewConfigScalar> = {}
+  for (const [key, value] of Object.entries(values)) {
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      value === null
+    ) {
+      scalars[key] = value
+    }
+  }
+  return scalars
+}
 
 function getViewIcon(viewId: string, label: string) {
   const normalized = `${viewId} ${label}`.toLowerCase()
@@ -454,47 +475,88 @@ function BoardRoute() {
     [activePlugins],
   )
   const activePluginSlots = useMemo(
-    () => activePlugins.flatMap((plugin) => plugin.cardSlots),
-    [activePlugins],
+    () =>
+      boardData
+        ? collectEnabledUiExtensions({
+            registry: pluginRegistry,
+            enabledPluginIds: boardData.enabledPluginIds,
+            slot: 'card.drawer.panels',
+          })
+        : [],
+    [boardData, pluginRegistry],
   )
+  const platformServices = useMemo<PlatformClientServices>(() => {
+    const openCard = (cardId: string) =>
+      updateSearch((current: any) => ({
+        ...current,
+        card: cardId,
+        view: activeViewId ?? current.view,
+      }))
+
+    return createBoardPlatformServices({
+      actions,
+      activeViewId,
+      navigate: ({ to, search: nextSearch }) =>
+        void navigate({
+          search: nextSearch as any,
+          to: to as never,
+        } as any),
+      openCard,
+      showToast: (message) => toast(message),
+    })
+  }, [actions, activeViewId, navigate])
   const commands = useMemo<CommandPaletteItem[]>(() => {
     return activePlugins.flatMap((plugin) =>
-      plugin.commands.map((command) => ({
-        id: command.id,
-        label: command.label,
-        keywords: command.keywords,
-        run: async () =>
+      plugin.commands.map((command) => {
+        const pluginServices = createPermissionedClientServices({
+          plugin,
+          services: platformServices,
+        })
+        return {
+          id: command.id,
+          label: command.label,
+          keywords: command.keywords,
+          run: async () =>
           command.run({
             workspaceSlug,
             boardId,
-            addProperty: actions.addProperty,
+            addProperty: pluginServices.properties.add,
             createCard: async () => {
               const firstColumn = boardData?.board.columns[0]
               if (firstColumn) {
-                await actions.createCard(
+                await pluginServices.cards.create(
                   'Plugin card',
                   firstColumn.id,
                   boardData.cardTypes[0]?.id,
                 )
               }
             },
-            navigate: ({ to, search: nextSearch }) =>
-              void navigate({
-                search: nextSearch as any,
-                to: to as never,
-              } as any),
-            toast: (message) => toast(message),
+            navigate: pluginServices.navigation.navigate,
+            toast: pluginServices.toast.show,
+            services: pluginServices,
           }),
-      })),
+        }
+      }),
     )
   }, [
-    actions,
     activePlugins,
     boardData?.board.columns,
+    boardData?.cardTypes,
     boardId,
-    navigate,
+    platformServices,
     workspaceSlug,
   ])
+  const boardHeaderExtensions = useMemo(
+    () =>
+      boardData
+        ? collectEnabledUiExtensions({
+            registry: pluginRegistry,
+            enabledPluginIds: boardData.enabledPluginIds,
+            slot: 'board.header.actions',
+          })
+        : [],
+    [boardData, pluginRegistry],
+  )
 
   const activeCard = boardData?.cards.find((card) => card.id === search.card)
   const activeCardType = boardData?.cardTypes.find(
@@ -798,6 +860,11 @@ function BoardRoute() {
     resolvedPluginView ??
     pluginViews.find((view) => view.defaultForBoard) ??
     pluginViews[0]
+  const pluginViewOwner = pluginView
+    ? activePlugins.find((plugin) =>
+        plugin.views.some((view) => view.id === pluginView.id),
+      )
+    : undefined
   const renderViewId = pluginView?.id ?? activeDefinitionViewId ?? 'unknown-view'
   const activeViewRecord = boardData?.views.find(
     (view) => view.instanceId === activeViewId,
@@ -819,14 +886,14 @@ function BoardRoute() {
       typeof currentConfig.kanbanDefaultPropertyValuesByType === 'object'
         ? (currentConfig.kanbanDefaultPropertyValuesByType as Record<
             string,
-            Record<string, unknown>
+            Record<string, BoardViewConfigScalar>
           >)
         : {}
     await actions.updateViewConfig(activeViewId, {
       ...currentConfig,
       kanbanDefaultPropertyValuesByType: {
         ...byType,
-        [typeKey]: propertyUpdates,
+        [typeKey]: toBoardViewConfigScalars(propertyUpdates),
       },
     })
     toast.success('Saved as board default properties.')
@@ -1060,6 +1127,23 @@ function BoardRoute() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
+                    {boardHeaderExtensions.map(({ extension, plugin, pluginId }) => (
+                      <div key={`${pluginId}:${extension.id}`}>
+                        {extension.render({
+                          slot: 'board.header.actions',
+                          pluginId,
+                          workspaceSlug,
+                          boardId,
+                          services: createPermissionedClientServices({
+                            plugin,
+                            services: platformServices,
+                          }),
+                          boardType: boardData.boardType,
+                          tagDefinitions: boardData.tagDefinitions,
+                          members: boardData.members,
+                        })}
+                      </div>
+                    ))}
                     {utilityPage === 'none' &&
                     boardData.views.some((v) => v.instanceId === activeViewId) ? (
                       <button
@@ -1420,7 +1504,14 @@ function BoardRoute() {
                   </div>
                 ) : pluginView ? (
                   <div className="h-full overflow-auto px-3 pb-4 pt-3 md:px-4">
-                    {pluginView.render({
+                    {(() => {
+                      const pluginServices = pluginViewOwner
+                        ? createPermissionedClientServices({
+                            plugin: pluginViewOwner,
+                            services: platformServices,
+                          })
+                        : platformServices
+                      return pluginView.render({
                       boardId,
                       boardName: boardData.board.name,
                       viewId: renderViewId,
@@ -1428,10 +1519,12 @@ function BoardRoute() {
                       viewMode: boardData.activeViewMode ?? 'shared',
                       viewLabel: activeViewRecord?.label ?? pluginView.label,
                       viewConfig: activeViewRecord?.config,
+                      featureInstance: activeViewRecord?.featureInstance,
                       updateViewConfig: (config) =>
                         activeViewId
-                          ? actions.updateViewConfig(activeViewId, config)
+                          ? pluginServices.views.updateConfig(config)
                           : Promise.resolve(),
+                      services: pluginServices,
                       boardType: boardData.boardType,
                       columns: boardData.board.columns,
                       cardTypes: boardData.cardTypes,
@@ -1442,22 +1535,18 @@ function BoardRoute() {
                         unreadCardIds,
                       },
                       actions: {
-                        createCard: actions.createCard,
+                        createCard: pluginServices.cards.create,
                         createSubTask: actions.createSubTask,
                         createColumn: actions.createColumn,
                         deleteColumn: actions.deleteColumn,
-                        moveCard: actions.moveCard,
-                        updateCard: actions.updateCard,
-                        openCard: (cardId: string) =>
-                          updateSearch((current: any) => ({
-                            ...current,
-                            card: cardId,
-                            view: activeViewId ?? current.view,
-                          })),
+                        moveCard: pluginServices.cards.move,
+                        updateCard: pluginServices.cards.update,
+                        openCard: pluginServices.navigation.openCard,
                         renameColumn: actions.renameColumn,
                         reorderColumn: actions.reorderColumn,
                       },
-                    })}
+                    })
+                    })()}
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center px-6 text-center">
@@ -1551,6 +1640,7 @@ function BoardRoute() {
         <CardDrawer
           activePluginPropertyTypes={activePluginPropertyTypes}
           activePluginSlots={activePluginSlots}
+          platformServices={platformServices}
           boardType={boardData.boardType}
           cardType={activeCardType}
           tagDefinitions={boardData.tagDefinitions}
@@ -1560,6 +1650,9 @@ function BoardRoute() {
           commentsOpen={search.focus === 'comments'}
           focusTarget={search.focus}
           highlightedCommentId={search.commentId}
+          renderCollaborationPanel={(panelProps) => (
+            <CardCommentsPanel {...panelProps} />
+          )}
           workspaceSlug={workspaceSlug}
           onAddProperty={actions.addProperty}
           onDeleteCard={async () => {

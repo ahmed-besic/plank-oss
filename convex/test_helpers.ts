@@ -19,6 +19,7 @@ type TableName =
 	| "fieldDefinitions"
 	| "nodes"
 	| "notifications"
+	| "pluginDiagnostics"
 	| "tagDefinitions"
 	| "workflowEvents"
 	| "workspaceCardTypeCustomFields"
@@ -204,6 +205,7 @@ export class MockConvexDb {
 			"fieldDefinitions",
 			"nodes",
 			"notifications",
+			"pluginDiagnostics",
 			"tagDefinitions",
 			"workflowEvents",
 			"workspaceCardTypeCustomFields",

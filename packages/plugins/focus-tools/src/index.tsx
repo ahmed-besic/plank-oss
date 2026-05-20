@@ -1,25 +1,15 @@
-import { definePlugin } from "@plank/plugin-sdk";
+import { defineClientPlugin } from "@plank/plugin-sdk";
 import type {
-  CardSlotProps,
-  PlankBoardTypeTemplate,
   PropertyEditorProps,
+  UiExtensionRenderProps,
   ViewRenderProps,
 } from "@plank/plugin-sdk";
+import {
+  confidencePropertyType,
+  focusToolsManifest,
+} from "./manifest";
 
-const confidencePropertyType = "focus-tools:confidence";
-
-export const focusBoardTemplate: PlankBoardTypeTemplate = {
-  id: "focus-tools:default",
-  name: "Focus Board",
-  description: "A board that opens with work ranked by confidence.",
-  defaultLifecycleStatuses: [
-    { key: "triage", label: "Triage", category: "todo", orderKey: "a0" },
-    { key: "focus", label: "Focus", category: "active", orderKey: "a1" },
-    { key: "resolved", label: "Resolved", category: "done", orderKey: "a2" },
-  ],
-  defaultViewIds: ["focus-tools:focus-view"],
-  version: 1,
-};
+export { focusBoardTemplate } from "./manifest";
 
 function normalizeConfidence(value: unknown) {
   const candidate =
@@ -139,7 +129,11 @@ function FocusView({ cards, cardTypes, boardType, actions }: ViewRenderProps) {
   );
 }
 
-function ConfidenceSlot({ card, cardType }: CardSlotProps) {
+function ConfidencePanel({ card, cardType }: UiExtensionRenderProps) {
+  if (!card) {
+    return null;
+  }
+
   const confidenceProperty = cardType?.propertiesSchema.find(
     (definition) => definition.type === confidencePropertyType,
   );
@@ -163,33 +157,14 @@ function ConfidenceSlot({ card, cardType }: CardSlotProps) {
   );
 }
 
-export const focusToolsPlugin = definePlugin(
-  {
-    id: "focus-tools",
-    name: "Focus tools",
-    version: "1.0.0",
-    hooks: [
-      "registerView",
-      "registerPropertyType",
-      "registerCommand",
-      "registerCardSlot",
-      "registerCardChange",
-      "registerBoardTypeTemplate",
-    ],
-    capabilities: ["cards:read", "cards:write", "boardViews:read"],
-    description: "Adds a focus-oriented view and confidence scoring.",
-    serverModule: "focus-tools",
-  },
+export const focusToolsPlugin = defineClientPlugin(
+  focusToolsManifest,
   ({
     registerView,
     registerPropertyType,
     registerCommand,
-    registerCardSlot,
-    registerCardChange,
-    registerBoardTypeTemplate,
+    registerUiExtension,
   }) => {
-    registerBoardTypeTemplate(focusBoardTemplate);
-
     registerView({
       id: "focus-tools:focus-view",
       label: "Focus",
@@ -212,29 +187,19 @@ export const focusToolsPlugin = definePlugin(
       id: "focus-tools:add-confidence-property",
       label: "Add confidence property",
       keywords: ["confidence", "focus", "property"],
-      run: async ({ addProperty, toast }) => {
-        if (!addProperty) {
-          toast?.("Open a board first to add the property.");
-          return;
-        }
-
-        await addProperty("Confidence", confidencePropertyType, {});
-        toast?.("Confidence property added.");
+      run: async ({ services }) => {
+        await services.properties.add("Confidence", confidencePropertyType, {});
+        services.toast.show("Confidence property added.");
       },
     });
 
-    registerCardSlot({
+    registerUiExtension({
       id: "focus-tools:confidence-slot",
-      title: "Focus confidence",
-      render: (props) => <ConfidenceSlot {...props} />,
-    });
-
-    registerCardChange({
-      id: "focus-tools:card-change-audit",
-      event: "*",
-      handle: async () => {
-        // Runtime dispatch is covered in plugin-runtime tests.
-      },
+      slot: "card.drawer.panels",
+      label: "Focus confidence",
+      order: -10,
+      requiredPermissions: ["cards:read"],
+      render: (props) => <ConfidencePanel {...props} />,
     });
   },
 );

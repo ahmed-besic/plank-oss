@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pluginRuntimePermissions, pluginTrustLevels } from "@plank/domain";
 import { describe, expect, it } from "vitest";
+import { builtinClientPlugins } from "./client";
+import { validatePluginManifest } from "./index";
+import { builtinServerPlugins } from "./server";
+import { requiredBuiltinPluginIds } from "./constants";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -78,6 +83,49 @@ function isForbiddenResolvedPath(resolvedPath: string) {
 }
 
 describe("plugin architecture boundaries", () => {
+  it("keeps runtime package exports explicit", () => {
+    const packageJson = readJson(path.join(packagesRoot, "plugin-runtime", "package.json"));
+
+    expect(packageJson.exports).toEqual({
+      ".": "./src/index.ts",
+      "./client": "./src/client.ts",
+      "./server": "./src/server.ts",
+    });
+  });
+
+  it("validates generated builtin manifest trust and permission metadata", () => {
+    const requiredIds = new Set(requiredBuiltinPluginIds);
+    const diagnostics: string[] = [];
+    const clientOrder = builtinClientPlugins.map((plugin) => plugin.manifest.id);
+    const serverOrder = builtinServerPlugins.map((plugin) => plugin.manifest.id);
+
+    expect(clientOrder).toEqual([...clientOrder].sort());
+    expect(serverOrder).toEqual([...serverOrder].sort());
+    expect(serverOrder).toEqual(clientOrder);
+
+    for (const plugin of [...builtinClientPlugins, ...builtinServerPlugins]) {
+      diagnostics.push(
+        ...validatePluginManifest(plugin.manifest).map((entry) => entry.message),
+      );
+
+      if (!pluginTrustLevels.includes((plugin.manifest.trustLevel ?? "trusted-local") as any)) {
+        diagnostics.push(`${plugin.manifest.id} has invalid trustLevel`);
+      }
+
+      for (const permission of plugin.manifest.capabilities) {
+        if (!pluginRuntimePermissions.includes(permission as any)) {
+          diagnostics.push(`${plugin.manifest.id} declares invalid permission ${permission}`);
+        }
+      }
+
+      if (requiredIds.has(plugin.manifest.id)) {
+        expect(plugin.manifest.trustLevel).toBe("builtin");
+      }
+    }
+
+    expect(diagnostics).toEqual([]);
+  });
+
   it("restricts plugin packages to approved shared workspace dependencies", () => {
     const violations: string[] = [];
 
@@ -149,5 +197,21 @@ describe("plugin architecture boundaries", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("keeps generated server builtins from importing client plugin entrypoints", () => {
+    const generatedServerBuiltinsPath = path.join(
+      packagesRoot,
+      "plugin-runtime",
+      "src",
+      "builtins.server.generated.ts",
+    );
+    const sourceText = fs.readFileSync(generatedServerBuiltinsPath, "utf8");
+    const importSources = getImportSources(sourceText);
+
+    expect(importSources.every((source) => !source.endsWith(".tsx"))).toBe(true);
+    expect(importSources.every((source) => source.endsWith("/server.ts"))).toBe(
+      true,
+    );
   });
 });

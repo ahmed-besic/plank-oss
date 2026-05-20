@@ -1,7 +1,7 @@
 import {
-  builtinPluginRegistry,
+  builtinServerPluginRegistry,
   isRequiredBuiltinPluginId,
-} from "@plank/plugin-runtime";
+} from "@plank/plugin-runtime/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { requireWorkspaceAccessBySlug } from "./lib/auth";
@@ -21,7 +21,7 @@ export const listBoardTypeTemplates = query({
       records.map((record) => [record.pluginId, record.status]),
     );
 
-    return builtinPluginRegistry.plugins.flatMap((plugin) => {
+    return builtinServerPluginRegistry.plugins.flatMap((plugin) => {
       return plugin.boardTypeTemplates.map((template) => ({
         pluginId: plugin.manifest.id,
         templateId: template.id,

@@ -6,7 +6,7 @@ import { coreKanbanPlugin } from "../../plugins/core-kanban/src/index.tsx";
 import { focusToolsPlugin } from "../../plugins/focus-tools/src/index.tsx";
 import { taskBoardPlugin } from "../../plugins/task-board/src/index.tsx";
 
-export const generatedBuiltinPlugins = [
+export const generatedBuiltinClientPlugins = [
   calendarBoardPlugin,
   coreKanbanPlugin,
   focusToolsPlugin,

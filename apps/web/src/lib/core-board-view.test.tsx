@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { builtinPluginRegistry } from '@plank/plugin-runtime'
+import { builtinClientPluginRegistry } from '@plank/plugin-runtime/client'
 
 describe('core board plugin view', () => {
   afterEach(() => cleanup())
@@ -55,7 +55,7 @@ describe('core board plugin view', () => {
   }
 
   it('renders the canonical board view through the plugin registry', () => {
-    const coreKanban = builtinPluginRegistry.pluginMap.get('core-kanban')
+    const coreKanban = builtinClientPluginRegistry.pluginMap.get('core-kanban')
     const boardView = coreKanban?.views.find(
       (view) => view.id === 'core-kanban:board',
     )
@@ -113,7 +113,7 @@ describe('core board plugin view', () => {
   })
 
   it('creates cards in the requested kanban status', async () => {
-    const coreKanban = builtinPluginRegistry.pluginMap.get('core-kanban')
+    const coreKanban = builtinClientPluginRegistry.pluginMap.get('core-kanban')
     const boardView = coreKanban?.views.find(
       (view) => view.id === 'core-kanban:board',
     )

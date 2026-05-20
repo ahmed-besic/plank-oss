@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calendarBoardPlugin, calendarBoardTemplate } from "./index";
+import { calendarBoardServerPlugin } from "./server";
 
 describe("calendar board plugin", () => {
   it("registers a deterministic calendar template and month view", () => {
@@ -9,7 +10,7 @@ describe("calendar board plugin", () => {
       version: 1,
     });
     expect(calendarBoardPlugin.manifest.id).toBe("calendar-board");
-    expect(calendarBoardPlugin.boardTypeTemplates.map((entry) => entry.id)).toEqual([
+    expect(calendarBoardServerPlugin.boardTypeTemplates.map((entry) => entry.id)).toEqual([
       "calendar-board:default",
     ]);
     expect(calendarBoardPlugin.views.map((entry) => entry.id)).toEqual([
