@@ -1,9 +1,11 @@
 import type { PlankPropertyTypeDefinition } from '@plank/plugin-sdk'
-import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getTagChipStyle, TAG_COLOR_PALETTE } from '@plank/ui'
 import type { BoardPageData } from '../lib/types'
+
+const NEW_OPTION_COLOR_PICKER_VALUE = '__new_option__'
 
 function getOptionColor(option: { label: string; value: string; color?: string }) {
   if (option.color) {
@@ -31,6 +33,8 @@ function SelectPropertyInput({
   const [open, setOpen] = useState(false)
   const [editingOptionValue, setEditingOptionValue] = useState<string | null>(null)
   const [colorPickerOptionValue, setColorPickerOptionValue] = useState<string | null>(null)
+  const [newOptionLabel, setNewOptionLabel] = useState('')
+  const [newOptionColor, setNewOptionColor] = useState('violet')
   const [tempLabel, setTempLabel] = useState('')
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -104,17 +108,32 @@ function SelectPropertyInput({
   }
 
   const handleAddOption = () => {
-    const nextColor = TAG_COLOR_PALETTE[options.length % TAG_COLOR_PALETTE.length]?.key ?? 'violet'
-    const newOptionVal = `option_${Date.now()}`
+    const label = newOptionLabel.trim()
+    if (!label) {
+      return
+    }
+    const normalizedValue = label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+    const baseValue = normalizedValue || `option_${Date.now()}`
+    let nextValue = baseValue
+    let suffix = 2
+    while (options.some((option) => option.value === nextValue)) {
+      nextValue = `${baseValue}_${suffix}`
+      suffix += 1
+    }
     const newOption = {
-      label: 'New option',
-      value: newOptionVal,
-      color: nextColor,
+      label,
+      value: nextValue,
+      color: newOptionColor,
     }
     const updatedOptions = [...options, newOption]
     onUpdateOptions?.(updatedOptions)
-    setEditingOptionValue(newOptionVal)
-    setTempLabel('New option')
+    onChange(nextValue)
+    setNewOptionLabel('')
+    setNewOptionColor('violet')
+    setOpen(false)
   }
 
   const activeColorPickerRect = colorPickerOptionValue
@@ -144,24 +163,7 @@ function SelectPropertyInput({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-30 mt-2 min-w-[280px] rounded-xl border border-border-subtle bg-cloud-white p-1.5 shadow-2xl">
-          <button
-            className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-              !selectedValue
-                ? 'bg-surface-sunken text-text-primary font-medium'
-                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'
-            }`}
-            onClick={() => {
-              onChange('')
-              setOpen(false)
-            }}
-            type="button"
-          >
-            <span>No value</span>
-          </button>
-
-          <div className="my-1 border-t border-zinc-100" />
-
+        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-xl border border-border-subtle bg-cloud-white p-1.5 shadow-2xl">
           <div className="space-y-0.5 max-h-60 overflow-y-auto pr-0.5">
             {options.map((option) => {
               const selected = selectedValue === option.value
@@ -172,16 +174,21 @@ function SelectPropertyInput({
               return (
                 <div
                   key={option.value}
+                  onClick={() => {
+                    if (!isEditing) {
+                      onChange(selected ? '' : option.value)
+                      setOpen(false)
+                    }
+                  }}
                   className={`group relative flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
                     selected ? 'bg-surface-sunken/60 text-text-primary' : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'
                   }`}
                 >
-                  {/* Left part: Color Selector swatch button */}
                   <div className="relative shrink-0">
                     <button
                       type="button"
                       aria-label="Change color"
-                      className="p-1 rounded-md hover:bg-zinc-200 transition flex items-center justify-center"
+                      className="p-1 rounded-md hover:bg-cloud-white transition flex items-center justify-center"
                       ref={(element) => {
                         colorPickerTriggerRefs.current[option.value] = element
                       }}
@@ -197,14 +204,12 @@ function SelectPropertyInput({
                         style={{ backgroundColor: swatchColor }}
                       />
                     </button>
-
                   </div>
 
-                  {/* Middle part: Option Label or Rename Input */}
                   <div className="flex-1 min-w-0">
                     {isEditing ? (
                       <input
-                        className="h-7 w-full rounded-lg border border-electric-violet bg-white px-2 py-0.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-electric-violet"
+                        className="h-7 w-full rounded-lg border border-border-subtle bg-surface-sunken px-2 py-0.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-border-strong"
                         value={tempLabel}
                         onChange={(e) => setTempLabel(e.target.value)}
                         onBlur={() => handleRenameComplete(option.value)}
@@ -219,31 +224,21 @@ function SelectPropertyInput({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <button
-                        type="button"
-                        className="w-full text-left truncate font-medium flex items-center"
-                        onClick={() => {
-                          onChange(option.value)
-                          setOpen(false)
-                        }}
+                      <span
+                        className="tag-chip max-w-[120px] truncate font-medium"
+                        style={getTagChipStyle(optionColor, { selected })}
                       >
-                        <span
-                          className="tag-chip font-medium"
-                          style={getTagChipStyle(optionColor, { selected })}
-                        >
-                          {option.label}
-                        </span>
-                      </button>
+                        {option.label}
+                      </span>
                     )}
                   </div>
 
-                  {/* Right part: Actions (Pencil & Trash icons, visible on hover) */}
                   {!isEditing && (
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         type="button"
                         aria-label="Rename option"
-                        className="p-1 text-text-tertiary rounded-md hover:bg-zinc-200 hover:text-text-primary transition"
+                        className="p-1 text-text-tertiary rounded-md hover:bg-cloud-white hover:text-text-primary transition"
                         onClick={(e) => {
                           e.stopPropagation()
                           setEditingOptionValue(option.value)
@@ -255,7 +250,7 @@ function SelectPropertyInput({
                       <button
                         type="button"
                         aria-label="Delete option"
-                        className="p-1 text-text-tertiary rounded-md hover:bg-zinc-200 hover:text-red-600 transition"
+                        className="p-1 text-text-tertiary rounded-md hover:bg-cloud-white hover:text-red-400 transition"
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDeleteOption(option.value)
@@ -270,18 +265,55 @@ function SelectPropertyInput({
             })}
           </div>
 
-          <div className="my-1 border-t border-zinc-100" />
+          <div className="my-1 border-t border-border-subtle" />
 
-          {/* Add Option Trigger button */}
           {onUpdateOptions ? (
-            <button
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-200 py-2 text-xs font-semibold text-text-tertiary transition hover:border-zinc-300 hover:bg-surface-sunken hover:text-text-primary"
-              onClick={handleAddOption}
-              type="button"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add option
-            </button>
+            <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
+              <button
+                type="button"
+                aria-label="Choose new option color"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition hover:bg-cloud-white"
+                ref={(element) => {
+                  colorPickerTriggerRefs.current[NEW_OPTION_COLOR_PICKER_VALUE] = element
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setColorPickerOptionValue(
+                    colorPickerOptionValue === NEW_OPTION_COLOR_PICKER_VALUE
+                      ? null
+                      : NEW_OPTION_COLOR_PICKER_VALUE,
+                  )
+                }}
+              >
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{
+                    backgroundColor:
+                      TAG_COLOR_PALETTE.find((c) => c.key === newOptionColor)?.swatch ??
+                      '#A78BFA',
+                  }}
+                />
+              </button>
+              <input
+                className="h-8 min-w-0 flex-1 rounded-lg border border-border-subtle bg-surface-sunken px-2.5 py-1 text-xs text-text-primary outline-none transition focus:ring-1 focus:ring-border-strong placeholder:text-text-placeholder"
+                onChange={(event) => setNewOptionLabel(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    handleAddOption()
+                  }
+                }}
+                placeholder="New option"
+                value={newOptionLabel}
+              />
+              <button
+                className="inline-flex h-8 items-center justify-center rounded-lg bg-cloud-white px-2.5 text-xs font-semibold text-text-primary transition hover:bg-surface-sunken disabled:pointer-events-none disabled:opacity-40"
+                disabled={!newOptionLabel.trim()}
+                onClick={handleAddOption}
+                type="button"
+              >
+                Add
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -302,6 +334,11 @@ function SelectPropertyInput({
                   className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
                   onClick={(e) => {
                     e.stopPropagation()
+                    if (colorPickerOptionValue === NEW_OPTION_COLOR_PICKER_VALUE) {
+                      setNewOptionColor(c.key)
+                      setColorPickerOptionValue(null)
+                      return
+                    }
                     handleColorChange(colorPickerOptionValue, c.key)
                   }}
                 >

@@ -250,6 +250,45 @@ export function useCardDrawerState({
       ])
     },
   })
+  const createTag = useMutation({
+    mutationFn: async (payload: { color?: string; name: string }) =>
+      convexClient.mutation(api.tags.createTag, {
+        workspaceSlug,
+        name: payload.name,
+        color: payload.color,
+      }),
+    onSuccess: async (result) => {
+      markDirty()
+      setSelectedTagIds((current) => [...current, String(result.tagId)])
+      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+    },
+  })
+  const updateTag = useMutation({
+    mutationFn: async (payload: { color?: string; name?: string; tagId: string }) =>
+      convexClient.mutation(api.tags.updateTag, {
+        workspaceSlug,
+        tagId: payload.tagId as never,
+        name: payload.name,
+        color: payload.color,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+    },
+  })
+  const deleteTag = useMutation({
+    mutationFn: async (tagId: string) =>
+      convexClient.mutation(api.tags.deleteTag, {
+        workspaceSlug,
+        tagId: tagId as never,
+      }),
+    onSuccess: async (_, tagId) => {
+      markDirty()
+      setSelectedTagIds((current) =>
+        current.filter((currentTagId) => currentTagId !== tagId),
+      )
+      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+    },
+  })
 
   const editor = useCreateBlockNote({
     initialContent: initialBody,
@@ -469,6 +508,8 @@ export function useCardDrawerState({
     addRelation,
     blockNoteEditor,
     closeAndSave,
+    createTag,
+    deleteTag,
     dirtyRef,
     editingSelectOptionsKey,
     expandedPluginSlotId,
@@ -516,6 +557,7 @@ export function useCardDrawerState({
     statusLabel,
     title,
     toggleTag,
+    updateTag,
     updateStatusKey,
     updatePropertyValue,
     visiblePropertyDefinitions,
