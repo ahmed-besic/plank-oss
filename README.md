@@ -3,6 +3,19 @@
 Plank is an open-source, Convex-powered team workflow app with realtime boards,
 typed cards, local plugins, and a deterministic automation engine.
 
+## Why this exists
+
+This started after watching Theo T3 talk about why he uses Notion over Obsidian.
+As someone who has been using VS Code for a long time and who recently tried the Pi coding agent, I kept
+thinking about a team collaboration platform that is extensible at its core.
+Plank is my vision of that: a solid base that teams can shape
+with plugins to fit how they actually work.
+
+<div style="border-left: 4px solid #2563eb; background: #eff6ff; padding: 12px 14px; margin: 12px 0;">
+  <strong>Feedback welcome:</strong> This is my first open-source project, and I would really value your help.
+  If I got something right, got something terribly wrong, missed important pieces, or overlooked optimizations and improvements, please tell me.
+</div>
+
 ## Alpha status
 
 Plank is currently in **alpha**.
