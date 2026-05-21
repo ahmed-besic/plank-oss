@@ -1,0 +1,3 @@
+display_name: Plank Plugin Author
+short_description: Build trusted-local Plank plugins with the project runtime.
+default_prompt: Create or update a Plank plugin following this repo's split client/server plugin architecture, package policy, and validation workflow.
