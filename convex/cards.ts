@@ -361,11 +361,10 @@ export const getCardRelations = query({
       ctx,
       args.workspaceSlug,
     );
-    await requireBoardWithType({
-      ctx,
-      workspaceId: workspace._id,
-      boardId: args.boardId,
-    });
+    const board = await ctx.db.get(args.boardId);
+    if (!board || board.workspaceId !== workspace._id) {
+      return { outgoing: [], incoming: [] };
+    }
     const card = await ctx.db.get(args.cardId);
     if (
       !card ||
