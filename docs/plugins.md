@@ -1,12 +1,12 @@
 # Plugin model
 
-Last reviewed: 2026-05-20
+Last reviewed: 2026-05-21
 
 ## Trust model
 
 Plank plugins are builtin or trusted local packages compiled with the app. They are not downloaded at runtime, and there is no sandbox or remote marketplace in the current implementation.
 
-For architecture planning, [`platform-conceptual-model.md`](platform-conceptual-model.md) distinguishes plugin packages from workspace extensions and feature instances. This document describes the current trusted local plugin-package implementation.
+For architecture planning, [`platform-conceptual-model.md`](platform-conceptual-model.md) distinguishes plugin packages from workspace extensions and feature instances. [`platform-later-marketplace-phases.md`](platform-later-marketplace-phases.md) records the implemented trusted-local baseline and future marketplace gates. This document describes the current trusted local plugin-package implementation.
 
 Plugin manifests may declare `trustLevel`:
 
@@ -15,6 +15,8 @@ Plugin manifests may declare `trustLevel`:
 - `restricted`: reserved for future marketplace or sandboxed execution. It is valid metadata today, but remote restricted execution is not implemented yet.
 
 Runtime permissions are declared in `manifest.capabilities` using the current coarse gates: `cards:read`, `cards:write`, and `boardViews:read`. Mediated client and server platform services enforce those gates and return structured runtime diagnostics when access is denied or handlers fail.
+
+Client plugins receive `PlatformClientServices` for navigation, cards, properties, views, and toast. Server plugins receive `PlatformServerServices`; the current server proof point is gated `cards.get(cardId)`.
 
 ## Builtin plugins
 
@@ -75,10 +77,13 @@ Fills are ordered by optional `order`, then builtin plugin package order, then f
 
 1. Builtin plugin packages are imported into the registry at build time.
 2. Convex normalizes workspace extension records as enablement state and merges them with required builtins to compute active plugin package ids.
-3. The board route filters registry content to the active plugin package set.
-4. Only active plugin package views, commands, property types, UI extension fills, and templates are exposed in the UI.
+3. The board route and settings route filter registry content to the active plugin package set.
+4. Only active plugin package views, commands, property types, UI extension fills, templates, card type manifests, and handlers are exposed through mediated runtime surfaces.
+5. Disabled non-required extensions do not contribute runtime features until re-enabled.
 
 Persisted board views are view feature instances. New rows include `featureInstance` identity alongside legacy view fields; readers continue to tolerate and normalize older rows.
+
+Workspace extension config, board settings, board type view defaults, and board view config use versioned envelopes for new writes while preserving legacy reads.
 
 ## Frontend integration points
 
@@ -89,6 +94,19 @@ Persisted board views are view feature instances. New rows include `featureInsta
 - board views own card presentation directly
 
 The runtime rejects duplicate board type template ids when the builtin registry is created.
+
+## Admin governance
+
+Workspace managers can inspect extension metadata in settings:
+
+- trust level and package version
+- declared runtime permissions and registration hooks
+- registered views, property types, commands, UI fills, board type templates, card type manifests, and card-change handlers
+- normalized workspace extension config
+- recent plugin diagnostics
+- disabled-extension explanations
+
+The settings UI only manages trusted-local enablement/config inspection today. It does not install remote plugins, uninstall packages, browse a marketplace, or sandbox restricted code.
 
 ## Board type templates
 
