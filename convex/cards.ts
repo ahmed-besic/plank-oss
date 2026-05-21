@@ -14,7 +14,6 @@ import {
   buildDefaultCoreFields,
   buildUpdateCardState,
   createCardWithSideEffects,
-  deleteRows,
   emitUpdateCardEvents,
   ensureTagIdsBelongToWorkspace,
   getCardScopeOrDefault,
@@ -32,11 +31,10 @@ import {
   validateAndSplitPropertyUpdates,
 } from "./lib/cardRuntime";
 import {
-  deleteNotificationsForCard,
-  deleteNotificationsForComment,
   getBodyMentionMessage,
   insertMentionNotifications,
-} from "./lib/mentions";
+} from "./features/collaboration/mentions";
+import { cleanupDeletedCardCollaboration } from "./features/collaboration/cleanup";
 
 export const markCardSeen = mutation({
   args: {
@@ -827,41 +825,19 @@ export const deleteCard = mutation({
         q.eq("boardId", card.boardId).eq("parentId", card._id),
       )
       .collect();
-    const deleteCardComments = async (cardId: Id<"cards">) => {
-      const comments = await ctx.db
-        .query("cardComments")
-        .withIndex("by_workspace_card_created_at", (query) =>
-          query.eq("workspaceId", workspace._id).eq("cardId", cardId),
-        )
-        .take(500);
-      for (const comment of comments) {
-        await deleteRows(
-          await ctx.db
-            .query("commentReactions")
-            .withIndex("by_workspace_comment", (query) =>
-              query.eq("workspaceId", workspace._id).eq("commentId", comment._id),
-            )
-            .take(200),
-          ctx,
-        );
-        await deleteNotificationsForComment({
-          ctx,
-          workspaceId: workspace._id,
-          commentId: comment._id,
-        });
-        await ctx.db.delete(comment._id);
-      }
-    };
     for (const subtask of subtasks) {
-      await deleteCardComments(subtask._id);
-      await deleteNotificationsForCard({
+      await cleanupDeletedCardCollaboration({
         ctx,
         workspaceId: workspace._id,
         cardId: subtask._id,
       });
       await ctx.db.delete(subtask._id);
     }
-    await deleteCardComments(card._id);
+    await cleanupDeletedCardCollaboration({
+      ctx,
+      workspaceId: workspace._id,
+      cardId: card._id,
+    });
 
     await emitCardEvent(ctx, workspace._id, {
       name: "card.deleted",
@@ -881,12 +857,6 @@ export const deleteCard = mutation({
       workspaceId: workspace._id,
       cardId: card._id,
     });
-    await deleteNotificationsForCard({
-      ctx,
-      workspaceId: workspace._id,
-      cardId: card._id,
-    });
-
     await ctx.db.delete(card._id);
 
     return { cardId: card._id };

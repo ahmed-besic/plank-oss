@@ -1,37 +1,17 @@
-import { definePlugin } from "@plank/plugin-sdk";
+import { defineClientPlugin } from "@plank/plugin-sdk";
 import { TaskBoardView } from "./views/TaskBoardView";
 import { PriorityEditor } from "./properties/PriorityEditor";
 import {
-  taskCardManifest,
-  taskBoardPluginId,
-  taskBoardTemplate,
+  taskBoardPluginManifest,
 } from "./manifest";
 
-export const taskBoardPlugin = definePlugin(
-  {
-    id: taskBoardPluginId,
-    name: "Task Board",
-    version: "1.0.0",
-    hooks: [
-      "registerView",
-      "registerPropertyType",
-      "registerCommand",
-      "registerBoardTypeTemplate",
-    ],
-    capabilities: ["cards:read", "cards:write", "boardViews:read"],
-    description: "Adds task cards, sub-tasks, and a task-focused board view.",
-    serverModule: "task-board",
-  },
+export const taskBoardPlugin = defineClientPlugin(
+  taskBoardPluginManifest,
   ({
-    registerBoardTypeTemplate,
-    registerCardTypeManifest,
     registerCommand,
     registerPropertyType,
     registerView,
   }) => {
-    registerBoardTypeTemplate(taskBoardTemplate);
-    registerCardTypeManifest(taskCardManifest);
-
     registerView({
       id: "task-board:board",
       label: "Tasks",

@@ -11,8 +11,10 @@ import {
   Users,
 } from 'lucide-react'
 import { Button } from '@plank/ui'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { WorkspaceShell } from '../../components/workspace-shell'
+import { usePlankApp } from '../../lib/providers'
+import { collectEnabledUiExtensions } from '../../lib/plugin-ui-extensions'
 import { AutomationTab } from './_settings/-automation-tab'
 import { ExtensionsTab } from './_settings/-extensions-tab'
 import { MembersTab } from './_settings/-members-tab'
@@ -27,9 +29,10 @@ export const Route = createRoute('/w/$workspaceSlug/settings')({
   component: WorkspaceSettingsRoute,
 })
 
-type TabKey = 'extensions' | 'schema' | 'automation' | 'members'
+type CoreTabKey = 'extensions' | 'schema' | 'automation' | 'members'
+type TabKey = CoreTabKey | string
 
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+const TABS: { key: CoreTabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'extensions', label: 'Extensions', icon: <Settings2 /> },
   { key: 'schema', label: 'Schema', icon: <Tags /> },
   { key: 'automation', label: 'Automation', icon: <Layers3 /> },
@@ -39,7 +42,27 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
 function WorkspaceSettingsRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = useSettingsData(workspaceSlug)
+  const { pluginRegistry } = usePlankApp()
   const [activeTab, setActiveTab] = useState<TabKey>('extensions')
+  const enabledPluginIds = useMemo(
+    () =>
+      data.overview?.extensions
+        .filter((extension) => extension.installed && extension.status === 'enabled')
+        .map((extension) => extension.manifest.id) ?? [],
+    [data.overview?.extensions],
+  )
+  const settingsExtensions = useMemo(
+    () =>
+      collectEnabledUiExtensions({
+        registry: pluginRegistry,
+        enabledPluginIds,
+        slot: 'settings.workspace.panels',
+      }),
+    [enabledPluginIds, pluginRegistry],
+  )
+  const activePluginPanel = settingsExtensions.find(
+    ({ extension, pluginId }) => activeTab === `${pluginId}:${extension.id}`,
+  )
 
   return (
     <>
@@ -74,6 +97,16 @@ function WorkspaceSettingsRoute() {
                         {tab.label}
                       </button>
                     ))}
+                    {settingsExtensions.map(({ extension, pluginId }) => (
+                      <button
+                        key={`${pluginId}:${extension.id}`}
+                        type="button"
+                        className={`settings-tab${activeTab === `${pluginId}:${extension.id}` ? ' active' : ''}`}
+                        onClick={() => setActiveTab(`${pluginId}:${extension.id}`)}
+                      >
+                        {extension.label}
+                      </button>
+                    ))}
                   </nav>
 
                   <div className="settings-panels">
@@ -89,6 +122,15 @@ function WorkspaceSettingsRoute() {
                     <div className={`settings-panel${activeTab === 'members' ? ' active' : ''}`}>
                       <MembersTab data={data} />
                     </div>
+                    {activePluginPanel ? (
+                      <div className="settings-panel active">
+                        {activePluginPanel.extension.render({
+                          slot: 'settings.workspace.panels',
+                          pluginId: activePluginPanel.pluginId,
+                          workspaceSlug,
+                        })}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

@@ -1,10 +1,28 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { persistedBoardViewConfigValidator } from "./lib/boardViewConfig";
+import {
+  persistedBoardSettingsValidator,
+  persistedBoardTypeViewDefaultsValidator,
+  persistedWorkspaceExtensionConfigValidator,
+} from "./lib/persistedState";
 
 const role = v.union(v.literal("owner"), v.literal("admin"), v.literal("member"));
 const inviteRole = v.union(v.literal("admin"), v.literal("member"));
 const extensionStatus = v.union(v.literal("enabled"), v.literal("disabled"));
+const pluginDiagnosticKind = v.union(
+  v.literal("permission-denied"),
+  v.literal("invalid-trust-level"),
+  v.literal("handler-failed"),
+  v.literal("handler-skipped"),
+  v.literal("extension-status-changed"),
+);
+const pluginDiagnosticSeverity = v.union(
+  v.literal("info"),
+  v.literal("warning"),
+  v.literal("error"),
+);
 const lifecycleCategory = v.union(
   v.literal("todo"),
   v.literal("active"),
@@ -121,6 +139,14 @@ const notificationKind = v.union(
 );
 
 const boardViewInstanceMode = v.union(v.literal("shared"), v.literal("private"));
+const featureInstanceRef = v.object({
+  schemaVersion: v.literal(1),
+  kind: v.literal("view"),
+  pluginPackageId: v.string(),
+  featureId: v.string(),
+  instanceId: v.string(),
+  instanceMode: boardViewInstanceMode,
+});
 
 const cardChangeEventKind = v.union(
   v.literal("new_card"),
@@ -320,13 +346,37 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     pluginId: v.string(),
     status: extensionStatus,
-    config: v.optional(v.any()),
+    config: v.optional(persistedWorkspaceExtensionConfigValidator),
     installedBy: v.string(),
     installedAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_plugin", ["workspaceId", "pluginId"]),
+
+  pluginDiagnostics: defineTable({
+    workspaceId: v.id("workspaces"),
+    pluginId: v.optional(v.string()),
+    kind: pluginDiagnosticKind,
+    severity: pluginDiagnosticSeverity,
+    message: v.string(),
+    permission: v.optional(v.string()),
+    handlerId: v.optional(v.string()),
+    eventId: v.optional(v.string()),
+    workflowEventId: v.optional(v.id("workflowEvents")),
+    boardId: v.optional(v.id("boards")),
+    cardId: v.optional(v.id("cards")),
+    actorId: v.optional(v.string()),
+    previousStatus: v.optional(extensionStatus),
+    nextStatus: v.optional(extensionStatus),
+    createdAt: v.number(),
+  })
+    .index("by_workspace_created_at", ["workspaceId", "createdAt"])
+    .index("by_workspace_plugin_created_at", [
+      "workspaceId",
+      "pluginId",
+      "createdAt",
+    ]),
 
   boardTypes: defineTable({
     workspaceId: v.id("workspaces"),
@@ -346,7 +396,7 @@ export default defineSchema({
         version: v.number(),
       }),
     ),
-    viewDefaults: v.optional(v.any()),
+    viewDefaults: v.optional(persistedBoardTypeViewDefaultsValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -422,7 +472,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     primaryViewId: v.optional(v.string()),
-    boardSettings: v.optional(v.any()),
+    boardSettings: v.optional(persistedBoardSettingsValidator),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_slug", ["workspaceId", "slug"])
@@ -436,11 +486,12 @@ export default defineSchema({
     definitionViewId: v.optional(v.string()),
     instanceMode: v.optional(boardViewInstanceMode),
     pluginId: v.optional(v.string()),
+    featureInstance: v.optional(featureInstanceRef),
     kind: v.string(),
     label: v.string(),
     orderKey: v.string(),
     isDefault: v.boolean(),
-    config: v.optional(v.any()),
+    config: v.optional(persistedBoardViewConfigValidator),
   })
     .index("by_board", ["boardId"])
     .index("by_workspace_board_view", ["workspaceId", "boardId", "viewId"])

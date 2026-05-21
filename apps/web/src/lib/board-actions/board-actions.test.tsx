@@ -131,7 +131,7 @@ function createBoardPageData(): BoardPageData {
         label: 'Board',
         orderKey: 'a0',
         isDefault: true,
-        config: { density: 'comfortable' },
+        config: { inboxVisible: false },
       },
     ],
     enabledPluginIds: ['core-kanban'],
@@ -329,7 +329,7 @@ describe('board action hooks', () => {
     let promise!: Promise<void>
     await act(async () => {
       promise = result.current.updateViewConfig('view-core-kanban-shared', {
-        density: 'compact',
+        inboxVisible: true,
       })
       await Promise.resolve()
     })
@@ -337,7 +337,7 @@ describe('board action hooks', () => {
     expect(
       queryClient.getQueryData<BoardPageData>(context.boardQueryKey)?.views[0]
         ?.config,
-    ).toEqual({ density: 'compact' })
+    ).toEqual({ inboxVisible: true })
 
     resolveMutation?.()
     await act(async () => {

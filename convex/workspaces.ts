@@ -1,11 +1,10 @@
 import {
   DEFAULT_PRIORITY_PROPERTY_OPTIONS,
-  canManageWorkspace,
   createDefaultLifecycleStatuses,
   createSlug,
   type WorkspaceRole,
 } from "@plank/domain";
-import { builtinPluginRegistry } from "@plank/plugin-runtime";
+import { builtinServerPluginRegistry } from "@plank/plugin-runtime/server";
 import { v } from "convex/values";
 import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -23,8 +22,14 @@ import { createUniqueBoardSlug, createUniqueWorkspaceSlug } from "./lib/slugs";
 import {
   ensureBoardViewsForBoard,
   getWorkspaceExtensionRecords,
-  mergePluginState,
 } from "./lib/plugins";
+import { loadWorkspaceOverview } from "./lib/loaders/workspaceOverview";
+import {
+  createBoardSettingsEnvelope,
+  createBoardTypeViewDefaultsEnvelope,
+  createWorkspaceExtensionConfigEnvelope,
+} from "./lib/persistedState";
+import { persistPluginDiagnostic } from "./lib/pluginDiagnostics";
 
 const workspaceInviteRoleValidator = v.union(v.literal("admin"), v.literal("member"));
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -275,7 +280,7 @@ async function requireWorkspaceInvite({
 }
 
 function getBuiltinPluginCardTypeManifests(pluginId: string) {
-  return builtinPluginRegistry.pluginMap.get(pluginId)?.cardTypeManifests ?? [];
+  return builtinServerPluginRegistry.pluginMap.get(pluginId)?.cardTypeManifests ?? [];
 }
 
 async function ensurePluginCardTypeManifests({
@@ -360,6 +365,9 @@ async function seedWorkspace({
     workspaceId,
     pluginId: "focus-tools",
     status: "enabled",
+    config: createWorkspaceExtensionConfigEnvelope({
+      pluginPackageId: "focus-tools",
+    }),
     installedBy: userId,
     installedAt: now,
     updatedAt: now,
@@ -368,6 +376,9 @@ async function seedWorkspace({
     workspaceId,
     pluginId: "task-board",
     status: "enabled",
+    config: createWorkspaceExtensionConfigEnvelope({
+      pluginPackageId: "task-board",
+    }),
     installedBy: userId,
     installedAt: now,
     updatedAt: now,
@@ -390,6 +401,9 @@ async function seedWorkspace({
       initialStatusKey: statuses[0]?.key ?? "backlog",
     },
     defaultViewIds: ["core-kanban:board"],
+    viewDefaults: createBoardTypeViewDefaultsEnvelope({
+      defaultViewIds: ["core-kanban:board"],
+    }),
     defaultCardTypeKey: defaultTypeKey,
     createdAt: now,
     updatedAt: now,
@@ -496,6 +510,7 @@ async function seedWorkspace({
     createdBy: userId,
     createdAt: now,
     updatedAt: now,
+    boardSettings: createBoardSettingsEnvelope(),
   });
 
   await ensureBoardViewsForBoard(ctx, workspaceId, boardId, ["focus-tools"]);
@@ -600,123 +615,13 @@ export const getOverview = query({
     const { member, userId, workspace } = access;
     const authUser = await getOptionalCurrentAuthUser(ctx);
 
-    const viewerCanManageWorkspace = canManageWorkspace(member.role);
-    const [
-      boards,
-      boardTypes,
-      members,
-      installed,
-      boardDigests,
-      boardMembershipStates,
-      invites,
-    ] =
-      await Promise.all([
-      ctx.db
-        .query("boards")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-        .collect(),
-      ctx.db
-        .query("boardTypes")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-        .collect(),
-      ctx.db
-        .query("workspaceMembers")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-        .collect(),
-      getWorkspaceExtensionRecords(ctx, workspace._id),
-      ctx.db
-        .query("boardDigests")
-        .withIndex("by_workspace", (query) =>
-          query.eq("workspaceId", workspace._id),
-        )
-        .collect(),
-      ctx.db
-        .query("boardMembershipStates")
-        .withIndex("by_workspace_and_user_and_board", (query) =>
-          query.eq("workspaceId", workspace._id).eq("userId", userId),
-        )
-        .collect(),
-      viewerCanManageWorkspace
-        ? ctx.db
-            .query("workspaceInvites")
-            .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-            .collect()
-        : Promise.resolve([]),
-    ]);
-
-    const digestByBoardId = new Map(
-      boardDigests.map((d) => [String(d.boardId), d]),
-    );
-    const seenAtByBoardId = new Map(
-      boardMembershipStates.map((state) => [String(state.boardId), state.lastSeenAt]),
-    );
-
-    return {
-      boards: boards
-        .map((board) => {
-          const digest = digestByBoardId.get(String(board._id));
-          return {
-            id: board._id,
-            name: board.name,
-            slug: board.slug,
-            workspaceId: board.workspaceId,
-            boardTypeId: board.boardTypeId,
-            viewerSeenAt: seenAtByBoardId.get(String(board._id)),
-            latestExternalChange: digest
-              ? {
-                  actorId: digest.latestExternalActorId,
-                  cardId: digest.latestExternalCardId,
-                  kind: digest.latestExternalKind,
-                  createdAt: digest.latestExternalChangeAt,
-                }
-              : undefined,
-          };
-        })
-        .sort((left, right) => left.name.localeCompare(right.name)),
-      boardTypes: boardTypes
-        .map((boardType) => ({
-          id: boardType._id,
-          key: boardType.key,
-          name: boardType.name,
-          description: boardType.description,
-          defaultViewIds: boardType.defaultViewIds,
-          defaultCardTypeKey: boardType.defaultCardTypeKey,
-        }))
-        .sort((left, right) => left.name.localeCompare(right.name)),
-      extensions: mergePluginState(installed),
-      members: members.map((record) => ({
-        id: record._id,
-        userId: record.userId,
-        name:
-          record._id === member._id
-            ? authUser?.name ?? record.name
-            : record.name,
-        email:
-          record._id === member._id
-            ? authUser?.email ?? record.email
-            : record.email,
-        role: record.role,
-        createdAt: record.createdAt,
-      })),
-      pendingInvites: invites
-        .filter((invite) => isInvitePending(invite, Date.now()))
-        .map((invite) => ({
-          id: invite._id,
-          email: invite.email,
-          role: invite.role,
-          createdAt: invite.createdAt,
-          expiresAt: getInviteExpiresAt(invite),
-          createdBy: invite.createdBy,
-        }))
-        .sort((left, right) => right.createdAt - left.createdAt),
-      workspace: {
-        id: workspace._id,
-        name: workspace.name,
-        slug: workspace.slug,
-        role: member.role,
-      },
-      viewerUserId: userId,
-    };
+    return await loadWorkspaceOverview({
+      authUser,
+      ctx,
+      member,
+      userId,
+      workspace,
+    });
   },
 });
 
@@ -746,6 +651,7 @@ export const createBoard = mutation({
       createdBy: userId,
       createdAt: now,
       updatedAt: now,
+      boardSettings: createBoardSettingsEnvelope(),
     });
 
     const installed = await getWorkspaceExtensionRecords(ctx, workspace._id);
@@ -782,6 +688,7 @@ export const setExtensionStatus = mutation({
       .unique();
 
     const now = Date.now();
+    const previousStatus = existing?.status;
     if (existing) {
       await ctx.db.patch(existing._id, {
         status: args.status,
@@ -792,11 +699,25 @@ export const setExtensionStatus = mutation({
         workspaceId: workspace._id,
         pluginId: args.pluginId,
         status: args.status,
+        config: createWorkspaceExtensionConfigEnvelope({
+          pluginPackageId: args.pluginId,
+        }),
         installedBy: userId,
         installedAt: now,
         updatedAt: now,
       });
     }
+    await persistPluginDiagnostic(ctx, {
+      workspaceId: workspace._id,
+      pluginId: args.pluginId,
+      kind: "extension-status-changed",
+      severity: "info",
+      message: `Extension ${args.pluginId} ${args.status === "enabled" ? "enabled" : "disabled"}`,
+      actorId: userId,
+      previousStatus,
+      nextStatus: args.status,
+      createdAt: now,
+    });
 
     if (args.status === "enabled") {
       await ensurePluginCardTypeManifests({

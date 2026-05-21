@@ -1,3 +1,5 @@
+import type { BoardViewConfigValue } from '@plank/domain'
+
 export interface BoardActions {
   addProperty: (
     name: string,
@@ -39,7 +41,7 @@ export interface BoardActions {
   syncPluginViews: () => Promise<void>
   updateViewConfig: (
     instanceId: string,
-    config: Record<string, unknown>,
+    config: BoardViewConfigValue,
   ) => Promise<void>
   addBoardView: (
     definitionViewId: string,

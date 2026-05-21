@@ -1,6 +1,15 @@
-import type { CardSlotProps } from "@plank/plugin-sdk";
+import type {
+  BoardTypeSummary,
+  CardSummary,
+} from "@plank/domain";
 
-export function CardSummarySlot({ card, boardType }: CardSlotProps) {
+export function CardSummarySlot({
+  boardType,
+  card,
+}: {
+  boardType: BoardTypeSummary;
+  card: CardSummary;
+}) {
   const statusLabel =
     boardType.lifecycleConfig.statuses.find(
       (status) => status.key === card.statusKey,

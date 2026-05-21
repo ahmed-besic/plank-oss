@@ -2,6 +2,7 @@ import type {
   BehaviorPackAuthoringMode,
   BehaviorCompileDiagnostic,
   BehaviorTargetType,
+  BoardViewConfigValue,
   CommentReactionKey,
   MentionRange,
   CardActivityKind,
@@ -9,6 +10,7 @@ import type {
   BoardTypeSummary,
   CardSummary,
   CardTypeSummary,
+  FeatureInstanceRef,
   TagDefinitionSummary,
   TraceStep,
   SimpleBehaviorRuleConfig,
@@ -77,6 +79,7 @@ export interface WorkspaceOverviewData {
       description?: string
       hooks: string[]
       capabilities: string[]
+      trustLevel?: 'builtin' | 'trusted-local' | 'restricted'
     }
     views: Array<{
       id: string
@@ -88,10 +91,72 @@ export interface WorkspaceOverviewData {
       label: string
       description?: string
     }>
+    features?: {
+      views: Array<{
+        id: string
+        label: string
+        description?: string
+      }>
+      propertyTypes: Array<{
+        id: string
+        label: string
+        description?: string
+      }>
+      commands: Array<{
+        id: string
+        label: string
+        keywords?: string[]
+      }>
+      uiExtensions: Array<{
+        id: string
+        slot: string
+        label: string
+        order?: number
+        requiredPermissions?: string[]
+      }>
+      boardTypeTemplates: Array<{
+        id: string
+        name: string
+        description?: string
+        version: number
+      }>
+      cardTypeManifests: Array<{
+        typeKey: string
+        schemaVersion: number
+      }>
+      cardChangeHandlers: Array<{
+        id: string
+        event: string
+      }>
+    }
+    config?: Record<string, unknown>
+    unavailableReason?: string
     installed: boolean
     status: 'enabled' | 'disabled'
   }>
   viewerUserId?: string
+}
+
+export interface PluginDiagnosticSummary {
+  id: string
+  pluginId?: string
+  kind:
+    | 'permission-denied'
+    | 'invalid-trust-level'
+    | 'handler-failed'
+    | 'handler-skipped'
+    | 'extension-status-changed'
+  severity: 'info' | 'warning' | 'error'
+  message: string
+  permission?: string
+  handlerId?: string
+  eventId?: string
+  boardId?: string
+  cardId?: string
+  actorId?: string
+  previousStatus?: 'enabled' | 'disabled'
+  nextStatus?: 'enabled' | 'disabled'
+  createdAt: number
 }
 
 export interface BoardPageData {
@@ -134,12 +199,13 @@ export interface BoardPageData {
     definitionViewId?: string
     viewId: string
     pluginId?: string
+    featureInstance?: FeatureInstanceRef
     kind: string
     label: string
     orderKey: string
     isDefault: boolean
     instanceMode?: 'shared' | 'private'
-    config?: Record<string, unknown>
+    config?: BoardViewConfigValue
   }>
   activeViewInstanceId?: string
   activeDefinitionViewId?: string

@@ -5,6 +5,7 @@ import {
   getSeededBoardViews,
   LEGACY_CORE_BOARD_VIEW_ID,
   normalizeBoardView,
+  normalizeWorkspaceExtensionState,
 } from './plugins'
 
 describe('plugin helpers', () => {
@@ -35,6 +36,47 @@ describe('plugin helpers', () => {
       pluginId: 'core-kanban',
       kind: 'core',
       label: 'Board',
+    })
+  })
+
+  it('normalizes legacy board view rows into feature instance refs', () => {
+    expect(
+      normalizeBoardView({
+        _id: 'boardView_1' as never,
+        viewId: 'calendar-board:month',
+        definitionViewId: 'calendar-board:month',
+        instanceMode: 'shared',
+        pluginId: 'calendar-board',
+        kind: 'core',
+        label: 'Calendar',
+        orderKey: 'a0',
+        isDefault: true,
+      }).featureInstance,
+    ).toEqual({
+      schemaVersion: 1,
+      kind: 'view',
+      pluginPackageId: 'calendar-board',
+      featureId: 'calendar-board:month',
+      instanceId: 'boardView_1',
+      instanceMode: 'shared',
+    })
+  })
+
+  it('normalizes workspace extension rows as enablement state', () => {
+    expect(
+      normalizeWorkspaceExtensionState({
+        pluginId: 'focus-tools',
+        status: 'enabled',
+        config: { panel: true },
+        installedAt: 1,
+        updatedAt: 2,
+      } as never),
+    ).toEqual({
+      pluginPackageId: 'focus-tools',
+      status: 'enabled',
+      config: { panel: true },
+      installedAt: 1,
+      updatedAt: 2,
     })
   })
 

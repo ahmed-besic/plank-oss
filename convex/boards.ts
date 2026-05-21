@@ -1,36 +1,57 @@
-import { compareOrderKeys, createKeyAfter, normalizePropertyOptions } from "@plank/domain";
-import { isRequiredBuiltinPluginId } from "@plank/plugin-runtime";
+import { compareOrderKeys, createKeyAfter } from "@plank/domain";
+import { isRequiredBuiltinPluginId } from "@plank/plugin-runtime/server";
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import {
   getOptionalCurrentAuthUser,
   getWorkspaceAccessBySlugIfAuthenticated,
   requireWorkspaceAccessBySlug,
 } from "./lib/auth";
 import {
+  createBoardViewFeatureInstance,
   createPrivateViewLabel,
   ensureBoardViewsForBoard,
-  getActivePluginIds,
-  getBoardViewScopeId,
   getCardScopeId,
   getViewDefinitionById,
   getViewSharingPolicy,
   getWorkspaceExtensionRecords,
   normalizeBoardView,
-  resolveBoardViewInstance,
-  SHARED_VIEW_SCOPE_ID,
 } from "./lib/plugins";
-import { deleteRows, requireBoardWithType, sortByOrderKey } from "./lib/cardRuntime";
-import { deleteNotificationsForBoardCards } from "./lib/mentions";
-
-function getDerivedColumns(boardType: Doc<"boardTypes">) {
-  return sortByOrderKey(boardType.lifecycleConfig.statuses).map((status) => ({
-    id: status.key,
-    statusKey: status.key,
-    orderKey: status.orderKey,
-  }));
-}
+import { deleteRows, requireBoardWithType } from "./lib/cardRuntime";
+import {
+  cleanupDeletedBoardCardsCollaboration,
+  cleanupDeletedBoardCollaborationRows,
+} from "./features/collaboration/cleanup";
+import {
+  boardViewConfigValueValidator,
+  normalizeBoardViewConfigForStorage,
+} from "./lib/boardViewConfig";
+import {
+  buildBoardSummary,
+  buildBoardTypeSummary,
+  loadBoardCore,
+} from "./lib/loaders/boardCore";
+import {
+  buildCardDigestByCardId,
+  buildCardSeenAtByCardId,
+  buildBoardMembers,
+  loadBoardCollaborationRows,
+} from "./lib/loaders/collaboration";
+import {
+  buildBoardViewSummaries,
+  loadBoardViewFeature,
+} from "./lib/loaders/boardViews";
+import {
+  buildCardSummaries,
+  buildCardTypeSummaries,
+  buildTagSummaries,
+  loadBoardCardRows,
+} from "./lib/loaders/boardCards";
+import {
+  getBoardActivityPageForViewer,
+  listBoardPresenceForViewer,
+} from "./features/collaboration/activity";
 
 async function upsertBoardMembershipState({
   ctx,
@@ -103,171 +124,6 @@ async function upsertBoardHeartbeat({
   });
 }
 
-function parseActivityCursor(cursor: string | undefined | null) {
-  if (!cursor) {
-    return null;
-  }
-  const separator = cursor.indexOf(":");
-  if (separator === -1) {
-    return null;
-  }
-  const createdAt = Number(cursor.slice(0, separator));
-  const id = cursor.slice(separator + 1);
-  if (!Number.isFinite(createdAt) || !id) {
-    return null;
-  }
-  return { createdAt, id };
-}
-
-function encodeActivityCursor(event: Doc<"cardChangeEvents">) {
-  return `${event.createdAt}:${String(event._id)}`;
-}
-
-function isActivityBeforeCursor(
-  event: Doc<"cardChangeEvents">,
-  cursor: { createdAt: number; id: string } | null,
-) {
-  if (!cursor) {
-    return true;
-  }
-  return (
-    event.createdAt < cursor.createdAt ||
-    (event.createdAt === cursor.createdAt && String(event._id) < cursor.id)
-  );
-}
-
-async function loadBoardPageData({
-  ctx,
-  workspaceId,
-  boardId,
-  userId,
-}: {
-  ctx: QueryCtx;
-  workspaceId: Id<"workspaces">;
-  boardId: Id<"boards">;
-  userId: string;
-}) {
-  const [
-    cards,
-    registryTypes,
-    tags,
-    members,
-    views,
-    installed,
-    allCustomFields,
-    cardDigests,
-    cardSeenStates,
-  ] = await Promise.all([
-    ctx.db
-      .query("cards")
-      .withIndex("by_board", (query) => query.eq("boardId", boardId))
-      .collect(),
-    ctx.db
-      .query("cardTypeRegistry")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspaceId))
-      .collect(),
-    ctx.db
-      .query("tagDefinitions")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspaceId))
-      .collect(),
-    ctx.db
-      .query("workspaceMembers")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspaceId))
-      .collect(),
-    ctx.db
-      .query("boardViews")
-      .withIndex("by_board", (query) => query.eq("boardId", boardId))
-      .collect(),
-    getWorkspaceExtensionRecords(ctx, workspaceId),
-    ctx.db
-      .query("workspaceCardTypeCustomFields")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspaceId))
-      .collect(),
-    ctx.db
-      .query("cardDigests")
-      .withIndex("by_workspace_and_board", (query) =>
-        query.eq("workspaceId", workspaceId).eq("boardId", boardId),
-      )
-      .collect(),
-    ctx.db
-      .query("cardSeenStates")
-      .withIndex("by_workspace_and_board_and_user_and_card", (query) =>
-        query.eq("workspaceId", workspaceId).eq("boardId", boardId).eq("userId", userId),
-      )
-      .collect(),
-  ]);
-  return {
-    cards,
-    registryTypes,
-    tags,
-    members,
-    views,
-    installed,
-    allCustomFields,
-    cardDigests,
-    cardSeenStates,
-  };
-}
-
-function buildCustomFieldsByTypeKey(
-  allCustomFields: Doc<"workspaceCardTypeCustomFields">[],
-) {
-  const customFieldsByTypeKey = new Map<string, typeof allCustomFields>();
-  for (const field of allCustomFields) {
-    if (field.status !== "active") {
-      continue;
-    }
-    const current = customFieldsByTypeKey.get(field.typeKey) ?? [];
-    current.push(field);
-    customFieldsByTypeKey.set(field.typeKey, current);
-  }
-  return customFieldsByTypeKey;
-}
-
-function buildCardSeenAtByCardId(rows: Doc<"cardSeenStates">[]) {
-  return new Map(rows.map((row) => [String(row.cardId), row.seenAt]));
-}
-
-async function buildSubtaskStatsByParentId({
-  scopeId,
-  topLevelCards,
-  scopedCards,
-  registryTypeByKey,
-}: {
-  scopeId: string;
-  topLevelCards: Doc<"cards">[];
-  scopedCards: Doc<"cards">[];
-  registryTypeByKey: Map<string, Doc<"cardTypeRegistry">>;
-}) {
-  const parentCards = topLevelCards.filter((card) => {
-    const registry = registryTypeByKey.get(card.typeKey);
-    return registry?.manifest.hierarchyPolicy?.supportsChildren;
-  });
-
-  if (parentCards.length === 0) {
-    return new Map<string, { total: number; completed: number }>();
-  }
-
-  const parentIdSet = new Set(parentCards.map((c) => c._id));
-  const subtaskStatsByParentId = new Map<string, { total: number; completed: number }>();
-  for (const card of scopedCards) {
-    if (!card.parentId || !parentIdSet.has(card.parentId)) {
-      continue;
-    }
-    if (getCardScopeId(card) !== scopeId) {
-      continue;
-    }
-    const key = String(card.parentId);
-    const current = subtaskStatsByParentId.get(key) ?? { total: 0, completed: 0 };
-    current.total += 1;
-    if (card.fields.core.completed === true) {
-      current.completed += 1;
-    }
-    subtaskStatsByParentId.set(key, current);
-  }
-  return subtaskStatsByParentId;
-}
-
 export const getBoardPage = query({
   args: {
     workspaceSlug: v.string(),
@@ -275,240 +131,78 @@ export const getBoardPage = query({
     viewId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-  const access = await getWorkspaceAccessBySlugIfAuthenticated(
-    ctx,
-    args.workspaceSlug,
-  );
-  if (!access) {
+    const access = await getWorkspaceAccessBySlugIfAuthenticated(
+      ctx,
+      args.workspaceSlug,
+    );
+    if (!access) {
       return null;
     }
 
     const { workspace, userId } = access;
     const authUser = await getOptionalCurrentAuthUser(ctx);
-    const board = await ctx.db.get(args.boardId);
-
-    if (!board || board.workspaceId !== workspace._id) {
-      return null;
-    }
-
-    const boardType = await ctx.db.get(board.boardTypeId);
-
-    if (!boardType || boardType.workspaceId !== workspace._id) {
-      return null;
-    }
-
-    const {
-      cards,
-      registryTypes,
-      tags,
-      members,
-      views,
-      installed,
-      allCustomFields,
-      cardDigests,
-      cardSeenStates,
-    } = await loadBoardPageData({
+    const core = await loadBoardCore({
       ctx,
       workspaceId: workspace._id,
-      boardId: board._id,
-      userId,
+      boardId: args.boardId,
     });
+    if (!core) {
+      return null;
+    }
+    const { board, boardType } = core;
 
-    const enabledPluginIds = getActivePluginIds(
-      installed.map((record) => ({
-        pluginId: record.pluginId,
-        status: record.status,
-      })),
+    const [viewFeature, cardRows, collaborationRows] = await Promise.all([
+      loadBoardViewFeature({
+        ctx,
+        workspaceId: workspace._id,
+        boardId: board._id,
+        requestedViewId: args.viewId,
+      }),
+      loadBoardCardRows({
+        ctx,
+        workspaceId: workspace._id,
+        boardId: board._id,
+      }),
+      loadBoardCollaborationRows({
+        ctx,
+        workspaceId: workspace._id,
+        boardId: board._id,
+        userId,
+      }),
+    ]);
+    const cardDigestByCardId = buildCardDigestByCardId(
+      collaborationRows.cardDigests,
     );
-    const enabledSet = new Set(enabledPluginIds);
-    const visibleViews = views
-      .map(normalizeBoardView)
-      .filter((view) => !view.pluginId || enabledSet.has(view.pluginId))
-      .sort((left, right) => compareOrderKeys(left.orderKey, right.orderKey));
-    const activeView = resolveBoardViewInstance({
-      requestedViewId: args.viewId,
-      views: visibleViews,
-    });
-    const activeScopeId = activeView
-      ? getBoardViewScopeId(activeView)
-      : SHARED_VIEW_SCOPE_ID;
-    const statusMap = new Map(
-      boardType.lifecycleConfig.statuses.map((status) => [status.key, status]),
+    const cardSeenAtByCardId = buildCardSeenAtByCardId(
+      collaborationRows.cardSeenStates,
     );
-    const customFieldsByTypeKey = buildCustomFieldsByTypeKey(allCustomFields);
-    const cardDigestByCardId = new Map(
-      cardDigests.map((digest) => [String(digest.cardId), digest]),
-    );
-    const cardSeenAtByCardId = buildCardSeenAtByCardId(cardSeenStates);
-    const scopedCards = cards.filter(
-      (card) => getCardScopeId(card) === activeScopeId,
-    );
-    const topLevelCards = scopedCards.filter((card) => !card.parentId);
-    const registryTypeByKey = new Map(registryTypes.map((row) => [row.typeKey, row]));
-    const subtaskStatsByParentId = await buildSubtaskStatsByParentId({
-      scopeId: activeScopeId,
-      topLevelCards,
-      scopedCards,
-      registryTypeByKey,
-    });
 
     return {
-      board: {
-        id: board._id,
-        name: board.name,
-        workspaceId: board.workspaceId,
+      board: buildBoardSummary({ board, boardType }),
+      boardType: buildBoardTypeSummary(boardType),
+      cardTypes: buildCardTypeSummaries({
+        allCustomFields: cardRows.allCustomFields,
         boardTypeId: board.boardTypeId,
-        columns: getDerivedColumns(boardType).map((column) => ({
-          id: column.id,
-          statusKey: column.statusKey,
-          title: statusMap.get(column.statusKey)?.label ?? column.statusKey,
-          orderKey: column.orderKey,
-        })),
-      },
-      boardType: {
-        id: boardType._id,
-        workspaceId: boardType.workspaceId,
-        key: boardType.key,
-        name: boardType.name,
-        description: boardType.description,
-        lifecycleConfig: {
-          statuses: sortByOrderKey(boardType.lifecycleConfig.statuses).map(
-            (status) => ({
-              key: status.key,
-              label: status.label,
-              category: status.category,
-              orderKey: status.orderKey,
-            }),
-          ),
-          initialStatusKey: boardType.lifecycleConfig.initialStatusKey,
-        },
-        defaultViewIds: boardType.defaultViewIds,
-        defaultCardTypeKey: boardType.defaultCardTypeKey,
-      },
-      cardTypes: registryTypes
-        .filter((row) => row.status === "active")
-        .map((row) => {
-          const coreSchema = row.manifest.fields.core.map((field, index) => ({
-            key: field.key,
-            name: field.label,
-            type:
-              (field.enumOptions?.length ?? 0) > 0 || (field.enumValues?.length ?? 0) > 0
-                ? "select"
-                : field.valueType,
-            orderKey: String(index),
-            required: field.required,
-            config: {
-              options: normalizePropertyOptions({
-                enumOptions: field.enumOptions,
-                enumValues: field.enumValues,
-              }),
-            },
-          }));
-          const customSchema = (customFieldsByTypeKey.get(row.typeKey) ?? []).map(
-            (field, index) => ({
-              key: field.key,
-              name: field.label,
-              type: field.propertyType ?? field.valueType,
-              orderKey: String(coreSchema.length + index),
-              required: field.required,
-              config: {
-                source: "custom",
-                options: normalizePropertyOptions({
-                  enumOptions: field.enumOptions,
-                  enumValues: field.enumValues,
-                }),
-              },
-            }),
-          );
-
-          return {
-            id: row.typeKey,
-            workspaceId: row.workspaceId,
-            boardTypeId: board.boardTypeId,
-            key: row.typeKey,
-            name: row.typeKey,
-            description: `${row.pluginId} (${row.schemaVersion})`,
-            schemaVersion: row.schemaVersion,
-            propertiesSchema: [...coreSchema, ...customSchema],
-            defaultTagIds: [],
-            capabilities: row.manifest.capabilities?.provides,
-            hierarchyPolicy: row.manifest.hierarchyPolicy,
-          };
-        })
-        .sort((a, b) => a.key.localeCompare(b.key)),
-      tagDefinitions: tags.map((tag) => ({
-        id: tag._id,
-        workspaceId: tag.workspaceId,
-        key: tag.key,
-        name: tag.name,
-        color: tag.color,
-        description: tag.description,
-      })),
-      members: members.map((member) => ({
-        id: member._id,
-        userId: member.userId,
-        name:
-          member.userId === userId
-            ? authUser?.name ?? member.name
-            : member.name,
-        email:
-          member.userId === userId
-            ? authUser?.email ?? member.email
-            : member.email,
-        role: member.role,
-      })),
-      cards: sortByOrderKey(topLevelCards).map((card) => {
-        const digest = cardDigestByCardId.get(String(card._id));
-        return {
-          id: card._id,
-          boardId: card.boardId,
-          scopeId: getCardScopeId(card),
-          typeKey: card.typeKey,
-          parentId: card.parentId ?? null,
-          typeSchemaVersion: card.typeSchemaVersion,
-          title: card.meta.title,
-          meta: card.meta,
-          statusKey: card.statusKey,
-          orderKey: card.orderKey,
-          properties: { ...card.fields.core, ...card.fields.custom },
-          fields: card.fields,
-          relations: card.relations,
-          tagIds: card.tagIds,
-          body: card.body,
-          subtaskStats: subtaskStatsByParentId.get(String(card._id)),
-          latestExternalChange: digest
-            ? {
-                actorId: digest.latestExternalActorId,
-                kind: digest.latestExternalKind,
-                createdAt: digest.latestExternalChangeAt,
-              }
-            : undefined,
-          viewerSeenAt: cardSeenAtByCardId.get(String(card._id)),
-          createdBy: card.createdBy,
-          createdAt: card.createdAt,
-          updatedAt: card.updatedAt,
-        };
+        registryTypes: cardRows.registryTypes,
       }),
-      views: visibleViews.map((view) => ({
-          id: view._id,
-          instanceId: view.instanceId,
-          definitionViewId: view.definitionViewId,
-          viewId: view.definitionViewId,
-          pluginId: view.pluginId,
-          kind: view.kind,
-          label: view.label,
-          orderKey: view.orderKey,
-          isDefault: view.isDefault,
-          instanceMode: view.instanceMode,
-          config:
-            view.config && typeof view.config === "object"
-              ? (view.config as Record<string, unknown>)
-              : undefined,
-        })),
-      activeViewInstanceId: activeView?.instanceId,
-      activeDefinitionViewId: activeView?.definitionViewId,
-      activeViewMode: activeView?.instanceMode,
-      enabledPluginIds,
+      tagDefinitions: buildTagSummaries(cardRows.tags),
+      members: buildBoardMembers({
+        authUser,
+        members: collaborationRows.members,
+        userId,
+      }),
+      cards: buildCardSummaries({
+        activeScopeId: viewFeature.activeScopeId,
+        cardDigestByCardId,
+        cardSeenAtByCardId,
+        cards: cardRows.cards,
+        registryTypes: cardRows.registryTypes,
+      }),
+      views: buildBoardViewSummaries(viewFeature.visibleViews),
+      activeViewInstanceId: viewFeature.activeView?.instanceId,
+      activeDefinitionViewId: viewFeature.activeView?.definitionViewId,
+      activeViewMode: viewFeature.activeView?.instanceMode,
+      enabledPluginIds: viewFeature.enabledPluginIds,
       viewerUserId: userId,
       workspace: {
         id: workspace._id,
@@ -524,7 +218,7 @@ export const updateBoardViewConfig = mutation({
     workspaceSlug: v.string(),
     boardId: v.id("boards"),
     instanceId: v.string(),
-    config: v.record(v.string(), v.any()),
+    config: boardViewConfigValueValidator,
   },
   handler: async (ctx, args) => {
     const { workspace } = await requireWorkspaceAccessBySlug(
@@ -549,8 +243,13 @@ export const updateBoardViewConfig = mutation({
       throw new Error("Board view not found");
     }
 
+    const normalizedView = normalizeBoardView(view);
+
     await ctx.db.patch(view._id, {
-      config: args.config,
+      config: normalizeBoardViewConfigForStorage({
+        config: args.config,
+        viewId: normalizedView.definitionViewId,
+      }),
     });
 
     return { ok: true };
@@ -637,6 +336,12 @@ export const addBoardView = mutation({
       definitionViewId: view.id,
       instanceMode: args.instanceMode,
       pluginId: plugin.manifest.id,
+      featureInstance: createBoardViewFeatureInstance({
+        definitionViewId: view.id,
+        instanceId,
+        instanceMode: args.instanceMode,
+        pluginId: plugin.manifest.id,
+      }),
       kind: isRequiredBuiltinPluginId(plugin.manifest.id) ? "core" : "plugin",
       label,
       orderKey: createKeyAfter(previousOrderKey),
@@ -708,27 +413,7 @@ export const removeBoardView = mutation({
         }
       }
 
-      for (const card of privateCards) {
-        const comments = await ctx.db
-          .query("cardComments")
-          .withIndex("by_workspace_card_created_at", (query) =>
-            query.eq("workspaceId", workspace._id).eq("cardId", card._id),
-          )
-          .take(500);
-        for (const comment of comments) {
-          await deleteRows(
-            await ctx.db
-              .query("commentReactions")
-              .withIndex("by_workspace_comment", (query) =>
-                query.eq("workspaceId", workspace._id).eq("commentId", comment._id),
-              )
-              .take(200),
-            ctx,
-          );
-          await ctx.db.delete(comment._id);
-        }
-      }
-      await deleteNotificationsForBoardCards({
+      await cleanupDeletedBoardCardsCollaboration({
         ctx,
         workspaceId: workspace._id,
         boardId: board._id,
@@ -878,60 +563,7 @@ export const listBoardPresence = query({
     workspaceSlug: v.string(),
     boardId: v.id("boards"),
   },
-  handler: async (ctx, args) => {
-    const access = await getWorkspaceAccessBySlugIfAuthenticated(
-      ctx,
-      args.workspaceSlug,
-    );
-    if (!access) {
-      return null;
-    }
-
-    const { workspace, userId } = access;
-    await requireBoardWithType({
-      ctx,
-      workspaceId: workspace._id,
-      boardId: args.boardId,
-    });
-
-    const authUser = await getOptionalCurrentAuthUser(ctx);
-    const [presenceRows, members] = await Promise.all([
-      ctx.db
-        .query("boardHeartbeats")
-        .withIndex("by_workspace_and_board", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", args.boardId),
-        )
-        .collect(),
-      ctx.db
-        .query("workspaceMembers")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-        .collect(),
-    ]);
-
-    const memberByUserId = new Map(members.map((member) => [member.userId, member]));
-
-    return {
-      items: presenceRows
-        .sort((left, right) => right.lastHeartbeatAt - left.lastHeartbeatAt)
-        .map((row) => {
-          const member = memberByUserId.get(row.userId);
-          return {
-            userId: row.userId,
-            name:
-              row.userId === userId
-                ? authUser?.name ?? member?.name
-                : member?.name,
-            email:
-              row.userId === userId
-                ? authUser?.email ?? member?.email
-                : member?.email,
-            role: member?.role,
-            lastHeartbeatAt: row.lastHeartbeatAt,
-            isViewer: row.userId === userId,
-          };
-        }),
-    };
-  },
+  handler: listBoardPresenceForViewer,
 });
 
 export const getBoardActivityPage = query({
@@ -942,104 +574,7 @@ export const getBoardActivityPage = query({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
-    const access = await getWorkspaceAccessBySlugIfAuthenticated(
-      ctx,
-      args.workspaceSlug,
-    );
-    if (!access) {
-      return null;
-    }
-
-    const { workspace } = access;
-    await requireBoardWithType({
-      ctx,
-      workspaceId: workspace._id,
-      boardId: args.boardId,
-    });
-
-    const pageSize = Math.max(1, Math.min(args.limit ?? 30, 100));
-    const parsedCursor = parseActivityCursor(args.cursor);
-    const [members, views, cards] = await Promise.all([
-      ctx.db
-        .query("workspaceMembers")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-        .collect(),
-      ctx.db
-        .query("boardViews")
-        .withIndex("by_board", (query) => query.eq("boardId", args.boardId))
-        .collect(),
-      ctx.db
-        .query("cards")
-        .withIndex("by_board", (query) => query.eq("boardId", args.boardId))
-        .collect(),
-    ]);
-    const activeView = resolveBoardViewInstance({
-      requestedViewId: args.viewId,
-      views,
-    });
-    const activeScopeId = activeView
-      ? getBoardViewScopeId(activeView)
-      : SHARED_VIEW_SCOPE_ID;
-    const visibleCardIds = new Set(
-      cards
-        .filter((card) => getCardScopeId(card) === activeScopeId)
-        .map((card) => String(card._id)),
-    );
-    const visibleCards = cards.filter((card) => visibleCardIds.has(String(card._id)));
-    const perCardEvents = await Promise.all(
-      visibleCards.map(async (card) =>
-        (
-          await ctx.db
-            .query("cardChangeEvents")
-            .withIndex("by_workspace_card_created_at", (query) => {
-              const byCard = query
-                .eq("workspaceId", workspace._id)
-                .eq("cardId", card._id);
-              return parsedCursor
-                ? byCard.lte("createdAt", parsedCursor.createdAt)
-                : byCard;
-            })
-            .order("desc")
-            .take(pageSize + 1)
-        ).filter((event) => isActivityBeforeCursor(event, parsedCursor)),
-      ),
-    );
-    const filteredEvents = perCardEvents
-      .flat()
-      .sort((left, right) => {
-        if (right.createdAt !== left.createdAt) {
-          return right.createdAt - left.createdAt;
-        }
-        return String(right._id).localeCompare(String(left._id));
-      });
-    const page = filteredEvents.slice(0, pageSize + 1);
-    const items = page.slice(0, pageSize);
-    const nextCursor =
-      page.length > pageSize && items.length > 0
-        ? encodeActivityCursor(items[items.length - 1]!)
-        : null;
-    const memberByUserId = new Map(members.map((member) => [member.userId, member]));
-    const cardsById = new Map(cards.map((card) => [String(card._id), card]));
-
-    return {
-      items: items.map((event) => {
-        const member = memberByUserId.get(event.actorId);
-        const card = cardsById.get(String(event.cardId));
-        return {
-          id: String(event._id),
-          actorId: event.actorId,
-          actorLabel: member?.name ?? member?.email ?? event.actorId,
-          cardId: String(event.cardId),
-          cardTitle: card?.meta.title ?? "Deleted card",
-          kind: event.kind,
-          createdAt: event.createdAt,
-          propertyKeys: event.propertyKeys,
-        };
-      }),
-      nextCursor,
-    };
-  },
+  handler: getBoardActivityPageForViewer,
 });
 
 export const syncPluginViews = mutation({
@@ -1143,64 +678,15 @@ export const deleteBoard = mutation({
         .collect(),
       ctx,
     );
-    await deleteRows(
-      await ctx.db
-        .query("boardMembershipStates")
-        .withIndex("by_workspace_and_board", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
+    await cleanupDeletedBoardCollaborationRows({
       ctx,
-    );
-    await deleteRows(
-      await ctx.db
-        .query("boardHeartbeats")
-        .withIndex("by_workspace_and_board", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
-      ctx,
-    );
-    await deleteRows(
-      await ctx.db
-        .query("cardSeenStates")
-        .withIndex("by_workspace_and_board_and_card", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
-      ctx,
-    );
+      workspaceId: workspace._id,
+      boardId: board._id,
+    });
     await deleteRows(
       await ctx.db
         .query("workflowEvents")
         .withIndex("by_workspace_board_created_at", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
-      ctx,
-    );
-    await deleteRows(
-      await ctx.db
-        .query("cardChangeEvents")
-        .withIndex("by_workspace_board_created_at", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
-      ctx,
-    );
-    await deleteRows(
-      await ctx.db
-        .query("boardDigests")
-        .withIndex("by_workspace_and_board", (query) =>
-          query.eq("workspaceId", workspace._id).eq("boardId", board._id),
-        )
-        .collect(),
-      ctx,
-    );
-    await deleteRows(
-      await ctx.db
-        .query("cardDigests")
-        .withIndex("by_workspace_and_board", (query) =>
           query.eq("workspaceId", workspace._id).eq("boardId", board._id),
         )
         .collect(),
@@ -1226,26 +712,7 @@ export const deleteBoard = mutation({
       )
       .collect();
     await deleteRows(behaviorBindings, ctx);
-    const comments = await ctx.db
-      .query("cardComments")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
-      .collect();
-    for (const comment of comments) {
-      if (!cardIds.has(String(comment.cardId))) {
-        continue;
-      }
-      await deleteRows(
-        await ctx.db
-          .query("commentReactions")
-          .withIndex("by_workspace_comment", (query) =>
-            query.eq("workspaceId", workspace._id).eq("commentId", comment._id),
-          )
-          .take(200),
-        ctx,
-      );
-      await ctx.db.delete(comment._id);
-    }
-    await deleteNotificationsForBoardCards({
+    await cleanupDeletedBoardCardsCollaboration({
       ctx,
       workspaceId: workspace._id,
       boardId: board._id,

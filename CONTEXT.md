@@ -44,9 +44,21 @@ _Avoid_: Field, attribute
 A package that extends Plank's capabilities — registering views, card types, property types, commands, and event hooks. All plugins are optional. Plugins are open-source; teams can build their own or use community ones.
 _Avoid_: Addon, integration
 
+**Plugin Package**:
+Architecture term for plugin code and manifests that exist in the app build. Use this when distinguishing package/code ownership from workspace installation state.
+_Avoid_: Workspace extension, installed plugin
+
 **Extension**:
 A plugin installed in a workspace with an enable/disable status. Users manage extensions; developers build plugins.
 _Avoid_: Plugin (when referring to the installed instance, not the package)
+
+**Workspace Extension**:
+Architecture term for the workspace-scoped installation and enablement record for a plugin package.
+_Avoid_: Plugin package, feature instance
+
+**Feature Instance**:
+A concrete mounted or persisted use of a feature, such as a board view instance, settings panel, workflow tool, or future plugin-provided surface.
+_Avoid_: Capability instance (`capabilities` already refers to card/view semantics)
 
 **Behavior Pack**:
 A set of rules that react to card events (created, moved, tagged, etc.) and perform actions (set property, move status, notify, etc.). Users see this as "Automation" in the UI — "behavior" is the architectural term; "automation" is the user-facing label.
@@ -73,7 +85,8 @@ _Avoid_: Link, connection, dependency
 - A **Card Type** declares what **Properties** a card can have
 - Any **Card Type** can appear on any **Board** — board types do not restrict card types
 - A **Card** can have many **Tags**, **Relations** to other cards, and an optional parent **Card** (parent-child hierarchy, currently subtask-style but could be opened for user-defined meaning)
-- A **Plugin** registers **Card Types**, views, property types, commands, and event hooks
+- A **Plugin Package** registers **Card Types**, views, property types, commands, and event hooks
+- A **Workspace Extension** enables or disables a **Plugin Package** for a **Workspace**
 - A **Behavior Pack** is attached to targets (workspace, board, board type, card type, tag) via **Bindings**
 
 ## Example dialogue

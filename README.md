@@ -21,7 +21,7 @@ Current auth is intentionally simple for development velocity and is **not secur
 
 ## Current product state
 
-Reviewed against the codebase on 2026-05-19.
+Reviewed against the codebase on 2026-05-21.
 
 Implemented today:
 
@@ -29,7 +29,11 @@ Implemented today:
 - boards backed by typed cards, board types, card types, and tags
 - board views: Kanban, Calendar, Focus, and Task Board
 - workspace-level plugin enable/disable controls
-- plugin-driven property types, commands, card slots, card renderers, and board type templates
+- split client/server plugin packages with shared manifests and generated registries
+- plugin-driven property types, commands, UI extension fills, card renderers, board type templates, card type manifests, and card-change hooks
+- governed UI extension slots for shell, board header, named card surfaces, and workspace settings
+- typed persisted plugin/platform state for board view config, workspace extension config, board settings, board type view defaults, and board view feature instances
+- persisted plugin diagnostics and admin-facing extension governance
 - automation packs, bindings, compile/activate flow, and run logs
 - board search, command palette, and plugin-aware card drawer rendering
 
@@ -91,6 +95,7 @@ pnpm exec auth --web-server-url http://localhost:3000
 - [`docs/README.md`](docs/README.md)
 - [`docs/architecture.md`](docs/architecture.md)
 - [`docs/plugins.md`](docs/plugins.md)
+- [`docs/platform-later-marketplace-phases.md`](docs/platform-later-marketplace-phases.md)
 
 ## Open-source files
 

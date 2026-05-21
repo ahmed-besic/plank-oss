@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": "./src/index.tsx",
+    "./manifest": "./src/manifest.ts",
+    "./server": "./src/server.ts"
   },
   "scripts": {
     "lint": "echo \"No lint step for @plank/plugin-calendar-board\"",

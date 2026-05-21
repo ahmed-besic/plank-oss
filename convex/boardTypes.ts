@@ -5,15 +5,16 @@ import {
   createKeyBetween,
   createSlug,
 } from "@plank/domain";
-import { builtinPluginRegistry, isRequiredBuiltinPluginId } from "@plank/plugin-runtime";
+import { builtinServerPluginRegistry, isRequiredBuiltinPluginId } from "@plank/plugin-runtime/server";
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { getCurrentUserId, requireWorkspaceAccessBySlug } from "./lib/auth";
 import { emitCardEvent } from "./lib/plugins";
+import { createBoardTypeViewDefaultsEnvelope } from "./lib/persistedState";
 
 const builtinBoardTypeTemplates = new Map(
-  builtinPluginRegistry.plugins.flatMap((plugin) =>
+  builtinServerPluginRegistry.plugins.flatMap((plugin) =>
     plugin.boardTypeTemplates.map((template) => [
       `${plugin.manifest.id}:${template.id}:${template.version}`,
       {
@@ -161,6 +162,7 @@ export const createBoardType = mutation({
     }
 
     const statuses = template?.defaultLifecycleStatuses ?? createDefaultLifecycleStatuses();
+    const defaultViewIds = template?.defaultViewIds ?? ["core-kanban:board"];
     const boardTypeId = await ctx.db.insert("boardTypes", {
       workspaceId: workspace._id,
       key,
@@ -170,7 +172,10 @@ export const createBoardType = mutation({
         statuses,
         initialStatusKey: statuses[0]?.key ?? "backlog",
       },
-      defaultViewIds: template?.defaultViewIds ?? ["core-kanban:board"],
+      defaultViewIds,
+      viewDefaults: createBoardTypeViewDefaultsEnvelope({
+        defaultViewIds,
+      }),
       defaultCardTypeKey: template?.defaultCardTypeKey ?? "core.todo",
       templateSource: args.templateRef
         ? {

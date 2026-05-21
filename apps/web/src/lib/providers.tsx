@@ -4,12 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConvexReactClient } from "convex/react";
 import type { PropsWithChildren } from "react";
 import { createContext, useContext, useState } from "react";
-import { builtinPluginRegistry } from "@plank/plugin-runtime";
+import { builtinClientPluginRegistry } from "@plank/plugin-runtime/client";
 
 interface AppContextValue {
   queryClient: QueryClient;
   convexClient: ConvexReactClient;
-  pluginRegistry: typeof builtinPluginRegistry;
+  pluginRegistry: typeof builtinClientPluginRegistry;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -47,7 +47,7 @@ export function PlankProviders({ children }: PropsWithChildren) {
       <QueryClientProvider client={clients.queryClient}>
         <AppContext.Provider
           value={{
-            pluginRegistry: builtinPluginRegistry,
+            pluginRegistry: builtinClientPluginRegistry,
             convexClient: clients.convexClient,
             queryClient: clients.queryClient,
           }}

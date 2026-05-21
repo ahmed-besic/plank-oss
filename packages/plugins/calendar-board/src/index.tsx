@@ -1,24 +1,13 @@
 import {
-  definePlugin,
-  type PlankBoardTypeTemplate,
+  defineClientPlugin,
   type ViewRenderProps,
 } from "@plank/plugin-sdk";
 import { Button } from "@plank/ui";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
+import { calendarBoardManifest } from "./manifest";
 
-export const calendarBoardTemplate: PlankBoardTypeTemplate = {
-  id: "calendar-board:default",
-  name: "Calendar Board",
-  description: "A date-focused board that opens in a calendar view.",
-  defaultLifecycleStatuses: [
-    { key: "scheduled", label: "Scheduled", category: "todo", orderKey: "a0" },
-    { key: "in_progress", label: "In Progress", category: "active", orderKey: "a1" },
-    { key: "done", label: "Done", category: "done", orderKey: "a2" },
-  ],
-  defaultViewIds: ["calendar-board:month"],
-  version: 1,
-};
+export { calendarBoardTemplate } from "./manifest";
 
 type CalendarConfig = {
   dateFieldKey?: string | null;
@@ -435,18 +424,9 @@ function CalendarMonthView(props: ViewRenderProps) {
   );
 }
 
-export const calendarBoardPlugin = definePlugin(
-  {
-    id: "calendar-board",
-    name: "Calendar Board",
-    version: "1.0.0",
-    hooks: ["registerView", "registerBoardTypeTemplate"],
-    capabilities: ["cards:read", "cards:write", "boardViews:read"],
-    description: "Adds a month calendar view over timestamp fields.",
-  },
-  ({ registerBoardTypeTemplate, registerView }) => {
-    registerBoardTypeTemplate(calendarBoardTemplate);
-
+export const calendarBoardPlugin = defineClientPlugin(
+  calendarBoardManifest,
+  ({ registerView }) => {
     registerView({
       id: "calendar-board:month",
       label: "Calendar",

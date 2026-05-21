@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { api } from '@convex/_generated/api'
+import type { BoardViewConfigValue } from '@plank/domain'
 import type { BoardActionContext } from './context'
 import { getBoardData, invalidateBoard } from './context'
 import type { BoardPageData } from '../types'
@@ -31,7 +32,7 @@ export function useViewBoardActions(context: BoardActionContext) {
       config,
     }: {
       instanceId: string
-      config: Record<string, unknown>
+      config: BoardViewConfigValue
     }) =>
       context.convexClient.mutation(api.boards.updateBoardViewConfig, {
         workspaceSlug: context.workspaceSlug,
@@ -94,7 +95,7 @@ export function useViewBoardActions(context: BoardActionContext) {
     },
     updateViewConfig: async (
       instanceId: string,
-      config: Record<string, unknown>,
+      config: BoardViewConfigValue,
     ) => {
       await updateViewConfigMutation.mutateAsync({ instanceId, config })
     },

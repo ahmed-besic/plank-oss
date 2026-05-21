@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { taskBoardPlugin } from "./index";
 import {
   taskBoardPluginId,
+  taskBoardPluginManifest,
   taskBoardTemplate,
   taskCardManifest,
   taskCardTypeKey,
   taskPriorityOptions,
 } from "./manifest";
+import { taskBoardServerPlugin } from "./server";
 
 describe("task board manifest", () => {
+  it("shares manifest metadata across client and server entries", () => {
+    expect(taskBoardPlugin.manifest).toEqual(taskBoardPluginManifest);
+    expect(taskBoardServerPlugin.manifest).toEqual(taskBoardPluginManifest);
+    expect(taskBoardPluginManifest.serverModule).toBe("./server");
+  });
+
   it("pins the task card manifest shape and defaults", () => {
     expect(taskBoardPluginId).toBe("task-board");
     expect(taskCardTypeKey).toBe("task-board:task");

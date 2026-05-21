@@ -1,8 +1,25 @@
 import { DEFAULT_PRIORITY_PROPERTY_OPTIONS } from "@plank/domain";
+import type { PluginManifest } from "@plank/domain";
 import type { CardTypeManifest, PlankBoardTypeTemplate } from "@plank/plugin-sdk";
 
 export const taskBoardPluginId = "task-board";
 export const taskCardTypeKey = "task-board:task";
+
+export const taskBoardPluginManifest: PluginManifest = {
+  id: taskBoardPluginId,
+  name: "Task Board",
+  version: "1.0.0",
+  hooks: [
+    "registerView",
+    "registerPropertyType",
+    "registerCommand",
+    "registerBoardTypeTemplate",
+  ],
+  capabilities: ["cards:read", "cards:write", "boardViews:read"],
+  trustLevel: "trusted-local",
+  description: "Adds task cards, sub-tasks, and a task-focused board view.",
+  serverModule: "./server",
+};
 
 export const taskCardManifest: CardTypeManifest = {
   pluginId: taskBoardPluginId,
@@ -88,3 +105,22 @@ export const taskBoardTemplate: PlankBoardTypeTemplate = {
 };
 
 export const taskPriorityOptions = DEFAULT_PRIORITY_PROPERTY_OPTIONS;
+
+export const taskBoardClientSummaries = {
+  views: [
+    {
+      id: "task-board:board",
+      label: "Tasks",
+      description: "Task-focused columns with due dates, priority, and sub-tasks.",
+      seedMode: "enabled" as const,
+    },
+  ],
+  propertyTypes: [{ id: "task-board:priority", label: "Priority" }],
+  commands: [
+    {
+      id: "task-board:add-task",
+      label: "Create task",
+      keywords: ["task", "todo", "create"],
+    },
+  ],
+};

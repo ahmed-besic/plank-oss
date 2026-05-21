@@ -4,7 +4,6 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useConvexAuth } from 'convex/react'
 import { cn } from '@plank/ui'
 import {
-  Bell,
   ChevronDown,
   CircleDot,
   LayoutDashboard,
@@ -17,12 +16,13 @@ import {
   Trash2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@convex/_generated/api'
-import type { NotificationData, WorkspaceOverviewData } from '../lib/types'
-import { getMemberDisplayName } from '../lib/member-display'
+import type { WorkspaceOverviewData } from '../lib/types'
 import { useHydrated } from '../lib/use-hydrated'
 import { usePlankApp } from '../lib/providers'
+import { collectEnabledUiExtensions } from '../lib/plugin-ui-extensions'
+import { NotificationCenter } from '../features/collaboration/NotificationCenter'
 import { useWorkspaceShellLayout } from './use-workspace-shell-layout'
 
 export function WorkspaceShell({
@@ -41,12 +41,10 @@ export function WorkspaceShell({
   const auth = useConvexAuth()
   const hydrated = useHydrated()
   const navigate = useNavigate()
-  const { convexClient, queryClient } = usePlankApp()
+  const { convexClient, pluginRegistry, queryClient } = usePlankApp()
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
-  const notificationMenuRef = useRef<HTMLDivElement>(null)
   const boardMenuRef = useRef<HTMLDivElement>(null)
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [openBoardMenuId, setOpenBoardMenuId] = useState<string | null>(null)
   const { isSidebarHidden, setIsSidebarHidden, sidebarWidth, startSidebarResize } =
     useWorkspaceShellLayout()
@@ -57,14 +55,6 @@ export function WorkspaceShell({
   const overviewOptions = convexQuery(api.workspaces.getOverview, {
     workspaceSlug: overview.workspace.slug,
   })
-  const notificationsOptions = convexQuery(api.notifications.listMine, {
-    workspaceSlug: overview.workspace.slug,
-    limit: 12,
-  })
-  const notificationsQuery = useQuery({
-    ...notificationsOptions,
-    enabled: hydrated && auth.isAuthenticated,
-  })
   const workspaceItems = workspacesQuery.data ?? [
     {
       id: overview.workspace.id,
@@ -73,37 +63,22 @@ export function WorkspaceShell({
       slug: overview.workspace.slug,
     },
   ]
-  const notifications = (notificationsQuery.data?.items ?? []) as NotificationData[]
-  const unreadNotifications = notificationsQuery.data?.unreadCount ?? 0
-  const memberNameByUserId = new Map(
-    overview.members.map((member) => [
-      member.userId,
-      getMemberDisplayName(member),
-    ]),
+  const enabledPluginIds = useMemo(
+    () =>
+      overview.extensions
+        .filter((extension) => extension.installed && extension.status === 'enabled')
+        .map((extension) => extension.manifest.id),
+    [overview.extensions],
   )
-  const markRead = useMutation({
-    mutationFn: async (notificationId: string) =>
-      convexClient.mutation(api.notifications.markRead, {
-        workspaceSlug: overview.workspace.slug,
-        notificationId: notificationId as never,
+  const sidebarNavigationExtensions = useMemo(
+    () =>
+      collectEnabledUiExtensions({
+        registry: pluginRegistry,
+        enabledPluginIds,
+        slot: 'shell.sidebar.navigation',
       }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: notificationsOptions.queryKey,
-      })
-    },
-  })
-  const markAllRead = useMutation({
-    mutationFn: async () =>
-      convexClient.mutation(api.notifications.markAllRead, {
-        workspaceSlug: overview.workspace.slug,
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: notificationsOptions.queryKey,
-      })
-    },
-  })
+    [enabledPluginIds, pluginRegistry],
+  )
   const renameBoard = useMutation({
     mutationFn: async ({ boardId, name }: { boardId: string; name: string }) =>
       convexClient.mutation((api.boards as any).renameBoard, {
@@ -150,10 +125,6 @@ export function WorkspaceShell({
   }, [overview.workspace.slug])
 
   useEffect(() => {
-    setIsNotificationsOpen(false)
-  }, [overview.workspace.slug])
-
-  useEffect(() => {
     if (!isWorkspaceMenuOpen) {
       return
     }
@@ -178,32 +149,6 @@ export function WorkspaceShell({
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isWorkspaceMenuOpen])
-
-  useEffect(() => {
-    if (!isNotificationsOpen) {
-      return
-    }
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!notificationMenuRef.current?.contains(event.target as Node)) {
-        setIsNotificationsOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsNotificationsOpen(false)
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown)
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isNotificationsOpen])
 
   useEffect(() => {
     if (!openBoardMenuId) {
@@ -250,34 +195,6 @@ export function WorkspaceShell({
       },
       search: {},
       to: '/w/$workspaceSlug',
-    } as never)
-  }
-
-  const openNotification = async (notification: NotificationData) => {
-    if (!notification.readAt && notification._id) {
-      await markRead.mutateAsync(notification._id)
-    }
-    setIsNotificationsOpen(false)
-    if (!notification.boardId) {
-      return
-    }
-    void navigate({
-      params: {
-        boardId: notification.boardId,
-        workspaceSlug: overview.workspace.slug,
-      },
-      search: {
-        card: notification.cardId,
-        commentId: notification.kind === 'mention_comment' ? notification.commentId : undefined,
-        focus:
-          notification.kind === 'mention_comment'
-            ? 'comments'
-            : notification.kind === 'mention_body'
-              ? 'description'
-              : undefined,
-        view: notification.viewInstanceId,
-      },
-      to: '/w/$workspaceSlug/boards/$boardId',
     } as never)
   }
 
@@ -402,99 +319,7 @@ export function WorkspaceShell({
           ) : null}
         </div>
 
-        <div
-          className="relative border-b border-border-subtle px-3 py-3"
-          ref={notificationMenuRef}
-        >
-          <button
-            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 hover:bg-surface-sunken"
-            onClick={() => setIsNotificationsOpen((open) => !open)}
-            type="button"
-          >
-            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary">
-              <Bell className="h-4 w-4" />
-              {unreadNotifications > 0 ? (
-                <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-electric-violet px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">
-                  {unreadNotifications}
-                </span>
-              ) : null}
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-text-primary">
-                Notifications
-              </span>
-              <span className="block text-xs text-text-tertiary">
-                {unreadNotifications > 0
-                  ? `${unreadNotifications} unread`
-                  : 'All caught up'}
-              </span>
-            </div>
-            <ChevronDown
-              className={cn(
-                'h-4 w-4 text-text-tertiary transition-transform duration-200',
-                isNotificationsOpen ? 'rotate-180' : '',
-              )}
-            />
-          </button>
-
-          {isNotificationsOpen ? (
-            <div className="absolute left-3 right-3 top-full z-30 mt-1 animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
-              <div className="mb-1 flex items-center justify-between px-2 py-1">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-                  Recent
-                </p>
-                <button
-                  className="text-xs font-semibold text-electric-violet transition hover:opacity-80 disabled:opacity-40"
-                  disabled={unreadNotifications === 0 || markAllRead.isPending}
-                  onClick={() => void markAllRead.mutateAsync()}
-                  type="button"
-                >
-                  Mark all read
-                </button>
-              </div>
-              <div className="space-y-1">
-                {notifications.length ? (
-                  notifications.map((notification) => (
-                    <button
-                      key={notification._id}
-                      className={cn(
-                        'w-full rounded-xl px-3 py-2.5 text-left transition-all duration-150',
-                        notification.readAt
-                          ? 'text-text-secondary hover:bg-surface-sunken'
-                          : 'bg-electric-violet/8 text-text-primary hover:bg-electric-violet/12',
-                      )}
-                      onClick={() => void openNotification(notification)}
-                      type="button"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span
-                          className={cn(
-                            'mt-1 h-2 w-2 shrink-0 rounded-full',
-                            notification.readAt
-                              ? 'bg-border-subtle'
-                              : 'bg-electric-violet',
-                          )}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block break-words text-sm font-medium">
-                            {notification.message}
-                          </span>
-                          <span className="mt-0.5 block text-xs text-text-tertiary">
-                            {memberNameByUserId.get(notification.actorId) ?? 'Someone'}
-                          </span>
-                        </span>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border-subtle px-3 py-6 text-center text-sm text-text-tertiary">
-                    No notifications yet.
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </div>
+        <NotificationCenter overview={overview} />
 
         {/* Section navigation */}
         <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
@@ -616,6 +441,19 @@ export function WorkspaceShell({
                 )
               })}
             </>
+          ) : null}
+          {sidebarNavigationExtensions.length ? (
+            <div className="mt-5 space-y-1 border-t border-border-subtle pt-4">
+              {sidebarNavigationExtensions.map(({ extension, pluginId }) => (
+                <div key={`${pluginId}:${extension.id}`}>
+                  {extension.render({
+                    slot: 'shell.sidebar.navigation',
+                    pluginId,
+                    workspaceSlug: overview.workspace.slug,
+                  })}
+                </div>
+              ))}
+            </div>
           ) : null}
         </nav>
 
