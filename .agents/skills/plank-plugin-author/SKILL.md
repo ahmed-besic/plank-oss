@@ -114,6 +114,35 @@ pnpm exec vitest run --config vitest.root.config.ts convex/functions.test.ts
 
 If web UI changed, add/run focused web tests.
 
+## Convex Artifact Cleanup
+
+When a local plugin experiment is removed from `packages/plugins/*`, Convex may
+still contain rows created while the plugin was installed or tested. Do not clean
+those rows by deleting broad tables manually.
+
+Use the owner-only maintenance functions instead:
+
+```bash
+pnpm exec convex run maintenance:previewPluginArtifactCleanup '{"workspaceSlug":"<workspace-slug>"}' --identity '{"tokenIdentifier":"<owner-token-identifier>","subject":"<owner-subject>"}'
+pnpm exec convex run maintenance:cleanupPluginArtifacts '{"workspaceSlug":"<workspace-slug>"}' --identity '{"tokenIdentifier":"<owner-token-identifier>","subject":"<owner-subject>"}'
+```
+
+The preview is required before cleanup. The cleanup targets orphan plugin IDs not
+present in the current builtin server plugin registry and removes only plugin
+artifacts: workspace extension rows, plugin diagnostics, safe board views, safe
+card type registry rows, behavior packs/bindings, and automation runs. It
+preserves user content, including boards, cards, tags, comments, members, invites,
+and notifications.
+
+If the preview reports blocked rows, treat them as a migration decision. A blocked
+`boardViews` row still has scoped cards; a blocked `cardTypeRegistry` row still
+has cards using its `typeKey`. Migrate/delete the referencing content first, then
+rerun cleanup.
+
+Important caveat: older dev databases may have `core.todo` registered under
+`pluginId: "core-cards"`. `core.todo` is the normal default card type, so do not
+delete those cards as plugin trash. Repair or migrate the registry owner instead.
+
 ## Guardrails
 
 - Do not add marketplace, remote install, sandbox, billing, package signing, or public review flows.

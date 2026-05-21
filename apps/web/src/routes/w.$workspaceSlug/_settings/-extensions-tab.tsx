@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { canManageExtensions } from '@plank/domain'
 import { Settings2 } from 'lucide-react'
 import { api } from '@convex/_generated/api'
 import type { SettingsData } from './-use-settings-data'
@@ -32,12 +33,13 @@ function formatConfig(config?: Record<string, unknown>) {
 
 export function ExtensionsTab({ data }: { data: SettingsData }) {
   const { overview, convexClient, invalidate, workspaceSlug } = data
+  const canLoadDiagnostics = overview ? canManageExtensions(overview.workspace.role) : false
   const diagnosticsQuery = useQuery({
     ...convexQuery(api.pluginDiagnostics.listRecent, {
       workspaceSlug,
       limit: 30,
     }),
-    enabled: Boolean(overview),
+    enabled: canLoadDiagnostics,
   })
   const diagnostics = (diagnosticsQuery.data ?? []) as PluginDiagnosticSummary[]
 

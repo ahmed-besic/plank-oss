@@ -47,6 +47,7 @@ import type * as lib_pluginDiagnostics from "../lib/pluginDiagnostics.js";
 import type * as lib_pluginServerApi from "../lib/pluginServerApi.js";
 import type * as lib_plugins from "../lib/plugins.js";
 import type * as lib_slugs from "../lib/slugs.js";
+import type * as maintenance from "../maintenance.js";
 import type * as migrations_phase2a from "../migrations/phase2a.js";
 import type * as migrations_phase2b from "../migrations/phase2b.js";
 import type * as notifications from "../notifications.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pluginServerApi": typeof lib_pluginServerApi;
   "lib/plugins": typeof lib_plugins;
   "lib/slugs": typeof lib_slugs;
+  maintenance: typeof maintenance;
   "migrations/phase2a": typeof migrations_phase2a;
   "migrations/phase2b": typeof migrations_phase2b;
   notifications: typeof notifications;

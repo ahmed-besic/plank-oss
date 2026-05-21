@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query'
 import { useQuery } from '@tanstack/react-query'
+import { canManageWorkspace } from '@plank/domain'
 import { useConvexAuth } from 'convex/react'
 
 import { api } from '@convex/_generated/api'
@@ -29,12 +30,14 @@ export function useSettingsData(workspaceSlug: string) {
   const runsOpts = convexQuery(api.behaviors.listRuns, { workspaceSlug })
 
   const overview = useQuery({ ...overviewOpts, enabled })
+  const canLoadManagerData =
+    enabled && Boolean(overview.data) && canManageWorkspace(overview.data!.workspace.role)
   const boardTypesQ = useQuery({ ...boardTypesOpts, enabled })
   const cardTypesQ = useQuery({ ...cardTypesOpts, enabled })
   const tagsQ = useQuery({ ...tagsOpts, enabled })
-  const packsQ = useQuery({ ...packsOpts, enabled })
-  const bindingsQ = useQuery({ ...bindingsOpts, enabled })
-  const runsQ = useQuery({ ...runsOpts, enabled })
+  const packsQ = useQuery({ ...packsOpts, enabled: canLoadManagerData })
+  const bindingsQ = useQuery({ ...bindingsOpts, enabled: canLoadManagerData })
+  const runsQ = useQuery({ ...runsOpts, enabled: canLoadManagerData })
 
   const invalidate = async () => {
     await Promise.all([

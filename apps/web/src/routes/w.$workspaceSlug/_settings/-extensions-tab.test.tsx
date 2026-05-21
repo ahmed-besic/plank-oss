@@ -5,23 +5,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionsTab } from './-extensions-tab'
 import type { WorkspaceOverviewData } from '../../../lib/types'
 
+const { useQueryMock } = vi.hoisted(() => ({
+  useQueryMock: vi.fn(),
+}))
+
 vi.mock('@tanstack/react-query', () => ({
   useMutation: () => ({
     isPending: false,
     mutate: vi.fn(),
   }),
-  useQuery: () => ({
-    data: [
-      {
-        id: 'diagnostic_1',
-        pluginId: 'core-kanban',
-        kind: 'handler-failed',
-        severity: 'error',
-        message: 'Handler failed',
-        createdAt: 1,
-      },
-    ],
-  }),
+  useQuery: useQueryMock,
 }))
 
 vi.mock('@convex-dev/react-query', () => ({
@@ -48,6 +41,19 @@ afterEach(() => {
 
 describe('ExtensionsTab', () => {
   it('shows each extension trust level and declared runtime permissions', () => {
+    useQueryMock.mockReturnValue({
+      data: [
+        {
+          id: 'diagnostic_1',
+          pluginId: 'core-kanban',
+          kind: 'handler-failed',
+          severity: 'error',
+          message: 'Handler failed',
+          createdAt: 1,
+        },
+      ],
+    })
+
     const overview: WorkspaceOverviewData = {
       workspace: {
         id: 'workspace_1',
@@ -149,5 +155,41 @@ describe('ExtensionsTab', () => {
     expect(screen.getByText('Config: compactMode: true')).toBeTruthy()
     expect(screen.getByText(/Disabled extensions do not contribute/)).toBeTruthy()
     expect(screen.getByText(/error: Handler failed/)).toBeTruthy()
+  })
+
+  it('does not load manager-only diagnostics for workspace members', () => {
+    useQueryMock.mockReturnValue({ data: [] })
+
+    const overview: WorkspaceOverviewData = {
+      workspace: {
+        id: 'workspace_1',
+        name: 'Acme',
+        slug: 'acme',
+        role: 'member',
+      },
+      boards: [],
+      boardTypes: [],
+      members: [],
+      pendingInvites: [],
+      extensions: [],
+      viewerUserId: 'user_2',
+    }
+
+    render(
+      <ExtensionsTab
+        data={
+          {
+            overview,
+            convexClient: { mutation: vi.fn() },
+            invalidate: vi.fn(),
+            workspaceSlug: 'acme',
+          } as any
+        }
+      />,
+    )
+
+    expect(useQueryMock).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    )
   })
 })

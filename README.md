@@ -91,6 +91,37 @@ pnpm typecheck
 pnpm test
 ```
 
+### Plugin artifact cleanup
+
+Local plugin experiments can leave Convex rows behind after the plugin package is
+removed from `packages/plugins/*` and the builtin registry is regenerated. Use the
+owner-only maintenance functions to preview and clean those stale plugin artifacts
+without deleting normal workspace content.
+
+Always preview first:
+
+```bash
+pnpm exec convex run maintenance:previewPluginArtifactCleanup '{"workspaceSlug":"<workspace-slug>"}' --identity '{"tokenIdentifier":"<owner-token-identifier>","subject":"<owner-subject>"}'
+```
+
+Then, if the preview looks safe:
+
+```bash
+pnpm exec convex run maintenance:cleanupPluginArtifacts '{"workspaceSlug":"<workspace-slug>"}' --identity '{"tokenIdentifier":"<owner-token-identifier>","subject":"<owner-subject>"}'
+```
+
+The cleanup removes only orphan plugin artifacts: stale workspace extension rows,
+plugin diagnostics, safe orphan board views, safe orphan card type registry rows,
+and workspace-scoped automation experiment rows. It preserves boards, cards, tags,
+comments, members, invites, notifications, and any row still referenced by cards.
+Blocked rows are reported in the preview and require manual migration or deletion
+of the referencing content.
+
+Note: `core.todo` is the normal default card type. Older dev databases may show
+its registry row as `pluginId: "core-cards"` even though `core-cards` is not in
+the current builtin plugin registry. Do not delete `core.todo` cards just to clear
+that blocker; migrate or repair that registry row instead.
+
 ### Environment setup
 
 Copy `.env.example` values into your local `.env.local` and set your own Convex deployment values.
