@@ -391,6 +391,12 @@ textarea::placeholder {
   padding-inline: 12px;
 }
 
+.card-drawer-editor .bn-editor [data-placeholder]::before,
+.card-drawer-editor .bn-editor .bn-inline-content:empty::before,
+.card-drawer-editor .bn-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
+  color: rgba(95, 99, 109, 0.66) !important;
+}
+
 @media (max-width: 1100px) {
   .calendar-board-layout {
     grid-template-columns: minmax(0, 1fr) !important;

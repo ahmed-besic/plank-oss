@@ -6,10 +6,11 @@ import {
   getTagChipStyle,
   getTagDotStyle,
 } from '@plank/ui'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '@convex/_generated/api'
 import type { SettingsData } from './-use-settings-data'
 import { ChevronDown, Pencil } from 'lucide-react'
+import { createPortal } from 'react-dom'
 
 export function SchemaTab({ data }: { data: SettingsData }) {
   const { boardTypes, cardTypes, tags, convexClient, invalidate, workspaceSlug } = data
@@ -23,18 +24,32 @@ export function SchemaTab({ data }: { data: SettingsData }) {
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
   const [tempTagName, setTempTagName] = useState('')
   const [colorPickerTagId, setColorPickerTagId] = useState<string | null>(null)
+  const schemaTabRef = useRef<HTMLDivElement>(null)
+  const newTagTriggerRef = useRef<HTMLButtonElement>(null)
+  const tagColorMenuRef = useRef<HTMLDivElement>(null)
+  const tagColorTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest('.relative')) {
-        setNewTagColorOpen(false)
-        setColorPickerTagId(null)
+      const target = event.target as Node
+      if (schemaTabRef.current?.contains(target)) {
+        return
       }
+      if (tagColorMenuRef.current?.contains(target)) {
+        return
+      }
+      if (newTagTriggerRef.current?.contains(target)) {
+        return
+      }
+      if (colorPickerTagId && tagColorTriggerRefs.current[colorPickerTagId]?.contains(target)) {
+        return
+      }
+      setNewTagColorOpen(false)
+      setColorPickerTagId(null)
     }
     window.addEventListener('pointerdown', onPointerDown)
     return () => window.removeEventListener('pointerdown', onPointerDown)
-  }, [])
+  }, [colorPickerTagId])
 
   const createBoardType = useMutation({
     mutationFn: async () =>
@@ -96,8 +111,15 @@ export function SchemaTab({ data }: { data: SettingsData }) {
     if (cardTypeName.trim()) createCardType.mutate()
   }
 
+  const newTagColorRect = newTagColorOpen
+    ? newTagTriggerRef.current?.getBoundingClientRect() ?? null
+    : null
+  const existingTagColorRect = colorPickerTagId
+    ? tagColorTriggerRefs.current[colorPickerTagId]?.getBoundingClientRect() ?? null
+    : null
+
   return (
-    <div className="schema-tab">
+    <div className="schema-tab" ref={schemaTabRef}>
       <h2 className="schema-title">Schema</h2>
       <p className="schema-subtitle">Workspace types, tags, and structure.</p>
 
@@ -113,6 +135,7 @@ export function SchemaTab({ data }: { data: SettingsData }) {
             <div className="relative shrink-0">
               <button
                 type="button"
+                ref={newTagTriggerRef}
                 className="schema-color-picker-trigger"
                 onClick={() => setNewTagColorOpen(!newTagColorOpen)}
                 style={getTagChipStyle(tagColor)}
@@ -120,27 +143,6 @@ export function SchemaTab({ data }: { data: SettingsData }) {
                 <span className="schema-tag-color-swatch" style={getTagDotStyle(tagColor)} />
                 <ChevronDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
               </button>
-              {newTagColorOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1.5 flex flex-col gap-1 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl max-h-48 overflow-y-auto w-32">
-                  {TAG_COLOR_PALETTE.map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition w-full text-left"
-                      onClick={() => {
-                        setTagColor(option.key)
-                        setNewTagColorOpen(false)
-                      }}
-                    >
-                      <span
-                        className="h-2.5 w-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: option.swatch }}
-                      />
-                      <span className="truncate">{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             <Input
@@ -209,33 +211,15 @@ export function SchemaTab({ data }: { data: SettingsData }) {
                 <div className="relative shrink-0">
                   <button
                     type="button"
+                    ref={(element) => {
+                      tagColorTriggerRefs.current[tag.id] = element
+                    }}
                     className="schema-tag-color-trigger"
                     onClick={() => setColorPickerTagId(colorPickerTagId === tag.id ? null : tag.id)}
                     style={getTagChipStyle(tag.color)}
                   >
                     <span className="schema-tag-color-swatch" style={getTagDotStyle(tag.color)} />
                   </button>
-                  {colorPickerTagId === tag.id && (
-                    <div className="absolute right-0 top-full z-50 mt-1.5 flex flex-col gap-1 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl max-h-48 overflow-y-auto w-32">
-                      {TAG_COLOR_PALETTE.map((option) => (
-                        <button
-                          key={option.key}
-                          type="button"
-                          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition w-full text-left"
-                          onClick={() => {
-                            updateTagMutation.mutate({ tagId: tag.id, color: option.key })
-                            setColorPickerTagId(null)
-                          }}
-                        >
-                          <span
-                            className="h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: option.swatch }}
-                          />
-                          <span className="truncate">{option.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </div>
             ))
@@ -244,6 +228,68 @@ export function SchemaTab({ data }: { data: SettingsData }) {
           )}
         </div>
       </section>
+      {newTagColorOpen && newTagColorRect
+        ? createPortal(
+            <div
+              ref={tagColorMenuRef}
+              className="fixed z-[70] flex max-h-48 w-32 flex-col gap-1 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl"
+              style={{
+                left: newTagColorRect.left,
+                top: newTagColorRect.bottom + 6,
+              }}
+            >
+              {TAG_COLOR_PALETTE.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  onClick={() => {
+                    setTagColor(option.key)
+                    setNewTagColorOpen(false)
+                  }}
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: option.swatch }}
+                  />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
+      {colorPickerTagId && existingTagColorRect
+        ? createPortal(
+            <div
+              ref={tagColorMenuRef}
+              className="fixed z-[70] flex max-h-48 w-32 flex-col gap-1 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl"
+              style={{
+                left: Math.max(existingTagColorRect.right - 128, 8),
+                top: existingTagColorRect.bottom + 6,
+              }}
+            >
+              {TAG_COLOR_PALETTE.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  onClick={() => {
+                    updateTagMutation.mutate({ tagId: colorPickerTagId, color: option.key })
+                    setColorPickerTagId(null)
+                  }}
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: option.swatch }}
+                  />
+                  <span className="truncate">{option.label}</span>
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
 
       {/* Card types */}
       <section className="schema-section">

@@ -1,6 +1,7 @@
 import type { PlankPropertyTypeDefinition } from '@plank/plugin-sdk'
 import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { getTagChipStyle, TAG_COLOR_PALETTE } from '@plank/ui'
 import type { BoardPageData } from '../lib/types'
 
@@ -33,6 +34,8 @@ function SelectPropertyInput({
   const [tempLabel, setTempLabel] = useState('')
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const colorPickerMenuRef = useRef<HTMLDivElement>(null)
+  const colorPickerTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const options = useMemo(
     () =>
       Array.isArray(definition.config?.options)
@@ -50,7 +53,17 @@ function SelectPropertyInput({
     }
 
     const onPointerDown = (event: PointerEvent) => {
-      if (containerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (containerRef.current?.contains(target)) {
+        return
+      }
+      if (colorPickerMenuRef.current?.contains(target)) {
+        return
+      }
+      if (
+        colorPickerOptionValue &&
+        colorPickerTriggerRefs.current[colorPickerOptionValue]?.contains(target)
+      ) {
         return
       }
       setOpen(false)
@@ -60,7 +73,7 @@ function SelectPropertyInput({
 
     window.addEventListener('pointerdown', onPointerDown)
     return () => window.removeEventListener('pointerdown', onPointerDown)
-  }, [open])
+  }, [colorPickerOptionValue, open])
 
   const handleColorChange = (optionValue: string, newColor: string) => {
     const updatedOptions = options.map((opt) =>
@@ -103,6 +116,10 @@ function SelectPropertyInput({
     setEditingOptionValue(newOptionVal)
     setTempLabel('New option')
   }
+
+  const activeColorPickerRect = colorPickerOptionValue
+    ? colorPickerTriggerRefs.current[colorPickerOptionValue]?.getBoundingClientRect() ?? null
+    : null
 
   return (
     <div className="relative" ref={containerRef}>
@@ -165,6 +182,9 @@ function SelectPropertyInput({
                       type="button"
                       aria-label="Change color"
                       className="p-1 rounded-md hover:bg-zinc-200 transition flex items-center justify-center"
+                      ref={(element) => {
+                        colorPickerTriggerRefs.current[option.value] = element
+                      }}
                       onClick={(e) => {
                         e.stopPropagation()
                         setColorPickerOptionValue(
@@ -178,28 +198,6 @@ function SelectPropertyInput({
                       />
                     </button>
 
-                    {/* Color Picker Dropdown (Absolute layout) */}
-                    {colorPickerOptionValue === option.value && (
-                      <div className="absolute left-8 top-0 z-50 flex flex-col gap-1 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl max-h-48 overflow-y-auto w-32">
-                        {TAG_COLOR_PALETTE.map((c) => (
-                          <button
-                            key={c.key}
-                            type="button"
-                            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition w-full text-left"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleColorChange(option.value, c.key)
-                            }}
-                          >
-                            <span
-                              className="h-2.5 w-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: c.swatch }}
-                            />
-                            <span className="truncate">{c.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   {/* Middle part: Option Label or Rename Input */}
@@ -287,6 +285,37 @@ function SelectPropertyInput({
           ) : null}
         </div>
       ) : null}
+      {open && colorPickerOptionValue && activeColorPickerRect
+        ? createPortal(
+            <div
+              ref={colorPickerMenuRef}
+              className="fixed z-[70] flex max-h-48 w-32 flex-col gap-1 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl"
+              style={{
+                left: activeColorPickerRect.right + 8,
+                top: activeColorPickerRect.top,
+              }}
+            >
+              {TAG_COLOR_PALETTE.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleColorChange(colorPickerOptionValue, c.key)
+                  }}
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: c.swatch }}
+                  />
+                  <span className="truncate">{c.label}</span>
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
