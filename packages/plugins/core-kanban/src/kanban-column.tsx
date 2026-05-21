@@ -325,8 +325,8 @@ export function SortableColumn({
             >
               <GripVertical className="h-4 w-4" />
             </button>
-            <Input
-              className="min-w-0 flex-1 border-none bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-text-primary shadow-none focus:border-none"
+            <input
+              className="kanban-column-title-input min-w-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-text-primary shadow-none outline-none ring-0 transition-none focus:border-0 focus:shadow-none focus:outline-none focus:ring-0"
               onBlur={() => void onRenameColumn(column.id, title)}
               onChange={(event) => setTitle(event.target.value)}
               value={title}

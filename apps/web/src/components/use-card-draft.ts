@@ -64,6 +64,7 @@ export function useCardDraft({
   mergedFieldValues,
   onResolveCardFileUrl,
   propertyValues,
+  sanitizePropertyValues,
   setBaseUpdatedAt,
   setEditingSelectOptionsKey,
   setExpandedPluginSlotId,
@@ -98,6 +99,9 @@ export function useCardDraft({
   mergedFieldValues: Record<string, unknown>
   onResolveCardFileUrl: (storageId: string) => Promise<string | null>
   propertyValues: Record<string, unknown>
+  sanitizePropertyValues: (
+    values: Record<string, unknown>,
+  ) => Record<string, unknown>
   setBaseUpdatedAt: (value: number) => void
   setEditingSelectOptionsKey: (value: string | null) => void
   setExpandedPluginSlotId: (value: string | null) => void
@@ -167,13 +171,17 @@ export function useCardDraft({
       const localBody = dehydrateContent(blockNoteEditor.document as BlockNoteDoc)
       const serverBodyForComparison = dehydrateContent(serverBody)
       const localState = localStateRef.current
+      const sanitizedLocalProperties = sanitizePropertyValues(
+        localState.propertyValues,
+      )
+      const sanitizedServerProperties = sanitizePropertyValues(mergedFieldValues)
       const hasLocalChanges =
         dirtyRef.current ||
         localState.title !== card.meta.title ||
         localState.statusKey !== card.statusKey ||
         !areStringArraysEqual(localState.selectedTagIds, card.tagIds) ||
-        stableSerialize(localState.propertyValues) !==
-          stableSerialize(mergedFieldValues) ||
+        stableSerialize(sanitizedLocalProperties) !==
+          stableSerialize(sanitizedServerProperties) ||
         serializeCardBody(localBody) !== serializeCardBody(serverBodyForComparison)
 
       if (!isCardSwitch && hasLocalChanges && !dirtyRef.current) {
@@ -185,7 +193,7 @@ export function useCardDraft({
       }
 
       setTitle(card.meta.title)
-      setPropertyValues(mergedFieldValues)
+      setPropertyValues(sanitizedServerProperties)
       setSelectedTagIds(card.tagIds)
       setStatusKey(card.statusKey)
       setBaseUpdatedAt(card.updatedAt)
@@ -217,14 +225,17 @@ export function useCardDraft({
       const serverFingerprint = sectionFingerprints({
         title: card.meta.title,
         body: dehydrateContent(serverBody),
-        properties: mergedFieldValues,
+        properties: sanitizedServerProperties,
         tagIds: card.tagIds,
         statusKey: card.statusKey,
       })
+      const sanitizedDraftProperties = sanitizePropertyValues(
+        existingDraft.propertyValues,
+      )
       const draftFingerprint = sectionFingerprints({
         title: existingDraft.title,
         body: existingDraft.body,
-        properties: existingDraft.propertyValues,
+        properties: sanitizedDraftProperties,
         tagIds: existingDraft.tagIds,
         statusKey: existingDraft.statusKey ?? card.statusKey,
       })
@@ -255,7 +266,7 @@ export function useCardDraft({
       }
 
       setTitle(existingDraft.title)
-      setPropertyValues(existingDraft.propertyValues)
+      setPropertyValues(sanitizedDraftProperties)
       setSelectedTagIds(existingDraft.tagIds)
       setStatusKey(existingDraft.statusKey ?? card.statusKey)
       const hydratedDraftBody = await hydrateContentWithSignedUrls(
@@ -301,6 +312,7 @@ export function useCardDraft({
     card.tagIds,
     card.updatedAt,
     mergedFieldValues,
+    sanitizePropertyValues,
     skipNextDraftWriteRef,
     suppressEditorChangeRef,
     toBlockNoteContent,
@@ -325,7 +337,7 @@ export function useCardDraft({
         cardId: card.id,
         title,
         body: currentBody,
-        propertyValues,
+        propertyValues: sanitizePropertyValues(propertyValues),
         tagIds: selectedTagIds,
         statusKey,
         baseUpdatedAt,
@@ -333,7 +345,7 @@ export function useCardDraft({
         baseFingerprint: sectionFingerprints({
           title: card.meta.title,
           body: dehydrateContent(toBlockNoteContent(card.body)),
-          properties: mergedFieldValues,
+          properties: sanitizePropertyValues(mergedFieldValues),
           tagIds: card.tagIds,
           statusKey: card.statusKey,
         }),
@@ -354,6 +366,7 @@ export function useCardDraft({
     dirtyRef,
     mergedFieldValues,
     propertyValues,
+    sanitizePropertyValues,
     selectedTagIds,
     statusKey,
     skipNextDraftWriteRef,
@@ -375,7 +388,7 @@ export function useCardDraft({
       suppressEditorChangeRef.current = false
     })
     setTitle(draft.title)
-    setPropertyValues(draft.propertyValues)
+    setPropertyValues(sanitizePropertyValues(draft.propertyValues))
     setSelectedTagIds(draft.tagIds)
     setStatusKey(draft.statusKey ?? card.statusKey)
     setBaseUpdatedAt(draft.baseUpdatedAt)

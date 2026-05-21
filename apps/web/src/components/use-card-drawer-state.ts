@@ -2,7 +2,7 @@ import { convexQuery } from '@convex-dev/react-query'
 import { useCreateBlockNote } from '@blocknote/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { normalizeCardBody } from '@plank/domain'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePlankApp } from '../lib/providers'
 import { api } from '../../../../convex/_generated/api'
 import {
@@ -36,6 +36,15 @@ function sortJsonValue(value: unknown): unknown {
 
 function stableSerialize(value: unknown) {
   return JSON.stringify(sortJsonValue(value))
+}
+
+function filterPropertyValues(
+  values: Record<string, unknown>,
+  allowedKeys: Set<string>,
+) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([key]) => allowedKeys.has(key)),
+  )
 }
 
 function serializeCardBody(content: BlockNoteDoc) {
@@ -151,6 +160,20 @@ export function useCardDrawerState({
       ),
     [cardType, hasInlineDueDate],
   )
+  const propertyKeySet = useMemo(
+    () =>
+      new Set(
+        cardType
+          ? cardType.propertiesSchema.map((definition) => definition.key)
+          : Object.keys(mergedFieldValues),
+      ),
+    [cardType, mergedFieldValues],
+  )
+  const sanitizePropertyValues = useCallback(
+    (values: Record<string, unknown>) =>
+      filterPropertyValues(values, propertyKeySet),
+    [propertyKeySet],
+  )
   const persistedCardId = isPersistedCardId(card.id) ? card.id : null
 
   const relationsOptions = convexQuery(api.cards.getCardRelations, {
@@ -263,6 +286,7 @@ export function useCardDrawerState({
     mergedFieldValues,
     onResolveCardFileUrl,
     propertyValues,
+    sanitizePropertyValues,
     selectedTagIds,
     setStatusKey,
     setBaseUpdatedAt,
@@ -291,8 +315,8 @@ export function useCardDrawerState({
         serializeCardBody(snapshot.body) !== serializeCardBody(baselineBody)
       const hasTitleChanges = snapshot.title !== card.meta.title
       const hasPropertyChanges =
-        stableSerialize(snapshot.propertyUpdates) !==
-        stableSerialize(mergedFieldValues)
+        stableSerialize(sanitizePropertyValues(snapshot.propertyUpdates)) !==
+        stableSerialize(sanitizePropertyValues(mergedFieldValues))
       const hasTagChanges = !areStringArraysEqual(snapshot.tagIds, card.tagIds)
       const nextStatusKey = snapshot.statusKey ?? card.statusKey
       const hasStatusChanges = nextStatusKey !== card.statusKey
@@ -307,7 +331,7 @@ export function useCardDrawerState({
     },
     getSnapshot: () => ({
       title,
-      propertyUpdates: propertyValues,
+      propertyUpdates: sanitizePropertyValues(propertyValues),
       tagIds: selectedTagIds,
       statusKey: statusKey === card.statusKey ? undefined : statusKey,
       body: dehydrateContent(blockNoteEditor.document as BlockNoteDoc),

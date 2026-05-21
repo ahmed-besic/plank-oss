@@ -322,6 +322,13 @@ textarea::placeholder {
   color: var(--color-text-placeholder);
 }
 
+.kanban-column-title-input,
+.kanban-column-title-input:hover,
+.kanban-column-title-input:focus,
+.kanban-column-title-input:focus-visible {
+  background-color: transparent !important;
+}
+
 .bn-container,
 .bn-editor,
 .bn-default-styles {

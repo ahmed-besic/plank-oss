@@ -37,6 +37,7 @@ describe('useCardDraft', () => {
         mergedFieldValues: {},
         onResolveCardFileUrl: async () => null,
         propertyValues: {},
+        sanitizePropertyValues: (values) => values,
         setBaseUpdatedAt: vi.fn(),
         setEditingSelectOptionsKey: vi.fn(),
         setExpandedPluginSlotId: vi.fn(),
