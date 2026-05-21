@@ -142,7 +142,11 @@ Introduce named extensibility slots in app shell and feature areas. The first tr
 
 - `shell.sidebar.navigation`
 - `board.header.actions`
-- `card.drawer.panels`
+- `card.header`
+- `card.metadata.primary`
+- `card.body.tools`
+- `card.sidebar.panels`
+- `card.footer.activity`
 - `settings.workspace.panels`
 
 Allow plugins to register fills against stable slot contracts. Fills are ordered deterministically by `order`, plugin package order, then fill id. Runtime permission filters use manifest permission strings such as `cards:read`; these are not domain card/view `capabilities`.

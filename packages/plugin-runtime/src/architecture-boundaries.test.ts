@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pluginRuntimePermissions, pluginTrustLevels } from "@plank/domain";
 import { describe, expect, it } from "vitest";
+import { validatePluginPackagePolicy } from "../../../scripts/plugin-package-policy.mjs";
 import { builtinClientPlugins } from "./client";
 import { validatePluginManifest } from "./index";
 import { builtinServerPlugins } from "./server";
@@ -121,6 +122,21 @@ describe("plugin architecture boundaries", () => {
       if (requiredIds.has(plugin.manifest.id)) {
         expect(plugin.manifest.trustLevel).toBe("builtin");
       }
+    }
+
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("validates local plugin package export and manifest policy", () => {
+    const diagnostics: string[] = [];
+
+    for (const packageDir of listDirectories(pluginPackagesRoot)) {
+      const result = validatePluginPackagePolicy(packageDir);
+      diagnostics.push(
+        ...result.diagnostics.map(
+          (diagnostic) => `${path.basename(packageDir)}: ${diagnostic}`,
+        ),
+      );
     }
 
     expect(diagnostics).toEqual([]);

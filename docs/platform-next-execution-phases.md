@@ -138,7 +138,7 @@ Evolve the card drawer from one extension panel seam into a governed card surfac
 ### Can Be Fully Implemented Now
 
 - add card surface slots such as `card.header`, `card.metadata.primary`, `card.body.tools`, `card.sidebar.panels`, and `card.footer.activity`
-- adapt existing `card.drawer.panels` fills into the richer surface model where useful
+- move existing card drawer fills into the richer surface model where useful
 - move collaboration, relation, metadata, and plugin panel placement through named card slots
 - document ordering, empty states, permission filtering, and visual ownership rules
 

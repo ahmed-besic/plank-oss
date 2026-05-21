@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import { createPermissionedClientServices } from '@plank/plugin-runtime'
-import type { PlatformClientServices } from '@plank/plugin-sdk'
+import type { PlatformClientServices, PlatformUiSlotId } from '@plank/plugin-sdk'
 import type { ResolvedUiExtension } from '../lib/plugin-ui-extensions'
 import type { BoardPageData } from '../lib/types'
 
@@ -14,6 +14,7 @@ export function CardDrawerPluginSlots({
   selectedTagIds,
   services,
   setExpandedPluginSlotId,
+  slot,
   tagDefinitions,
   title,
   workspaceSlug,
@@ -27,18 +28,23 @@ export function CardDrawerPluginSlots({
   selectedTagIds: string[]
   services?: PlatformClientServices
   setExpandedPluginSlotId: (value: string | null) => void
+  slot: PlatformUiSlotId
   tagDefinitions: BoardPageData['tagDefinitions']
   title: string
   workspaceSlug: string
 }) {
-  if (!activePluginSlots.length) {
+  const slotExtensions = activePluginSlots.filter(
+    (entry) => entry.extension.slot === slot,
+  )
+
+  if (!slotExtensions.length) {
     return null
   }
 
   return (
     <div className="border-t border-zinc-100 bg-white px-4 py-2">
       <div className="flex items-center gap-2 overflow-x-auto">
-        {activePluginSlots.map(({ extension, plugin, pluginId }) => {
+        {slotExtensions.map(({ extension, plugin, pluginId }) => {
           const panelId = `${pluginId}:${extension.id}`
           const expanded = expandedPluginSlotId === panelId
           const pluginServices = services
@@ -64,7 +70,7 @@ export function CardDrawerPluginSlots({
               {expanded ? (
                 <div className="max-h-28 overflow-auto border-t border-zinc-200/80 px-2.5 py-2 text-sm">
                   {extension.render({
-                    slot: 'card.drawer.panels',
+                    slot,
                     pluginId,
                     workspaceSlug,
                     boardId: card.boardId,

@@ -65,12 +65,30 @@ describe('ExtensionsTab', () => {
             id: 'core-kanban',
             name: 'Core Kanban',
             version: '1.0.0',
-            hooks: [],
+            hooks: ['registerView', 'registerUiExtension'],
             capabilities: ['cards:write', 'boardViews:read'],
             trustLevel: 'builtin',
           },
           views: [],
           propertyTypes: [],
+          features: {
+            views: [{ id: 'core-kanban:board', label: 'Board' }],
+            propertyTypes: [{ id: 'text', label: 'Text' }],
+            commands: [{ id: 'core-kanban:create-card', label: 'Create card' }],
+            uiExtensions: [
+              {
+                id: 'core-kanban:status',
+                slot: 'card.sidebar.panels',
+                label: 'Current status',
+              },
+            ],
+            boardTypeTemplates: [
+              { id: 'core-kanban:default', name: 'Kanban Board', version: 1 },
+            ],
+            cardTypeManifests: [],
+            cardChangeHandlers: [],
+          },
+          config: { compactMode: true },
           installed: true,
           status: 'enabled',
         },
@@ -84,8 +102,19 @@ describe('ExtensionsTab', () => {
           },
           views: [],
           propertyTypes: [],
+          features: {
+            views: [],
+            propertyTypes: [],
+            commands: [],
+            uiExtensions: [],
+            boardTypeTemplates: [],
+            cardTypeManifests: [],
+            cardChangeHandlers: [],
+          },
           installed: true,
           status: 'disabled',
+          unavailableReason:
+            'Disabled extensions do not contribute views, commands, UI fills, templates, or handlers.',
         },
       ],
       viewerUserId: 'user_1',
@@ -105,11 +134,20 @@ describe('ExtensionsTab', () => {
     )
 
     expect(
-      screen.getByText('Trust: Builtin · Permissions: cards:write, boardViews:read'),
+      screen.getByText(
+        'Trust: Builtin · Version: 1.0.0 · Permissions: cards:write, boardViews:read',
+      ),
     ).toBeTruthy()
     expect(
-      screen.getByText('Trust: Trusted local · Permissions: none'),
+      screen.getByText(
+        'Trust: Trusted local · Version: 1.0.0 · Permissions: none',
+      ),
     ).toBeTruthy()
+    expect(screen.getByText('Hooks: registerView, registerUiExtension')).toBeTruthy()
+    expect(screen.getByText(/1 views · 1 property types · 1 commands · 1 UI fills · 1 templates/)).toBeTruthy()
+    expect(screen.getByText(/core-kanban:status \(card.sidebar.panels\)/)).toBeTruthy()
+    expect(screen.getByText('Config: compactMode: true')).toBeTruthy()
+    expect(screen.getByText(/Disabled extensions do not contribute/)).toBeTruthy()
     expect(screen.getByText(/error: Handler failed/)).toBeTruthy()
   })
 })

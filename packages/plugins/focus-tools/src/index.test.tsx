@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformClientServices } from "@plank/plugin-sdk";
 import { focusBoardTemplate, focusToolsPlugin } from "./index";
+import { focusToolsManifest } from "./manifest";
 import { focusToolsServerPlugin } from "./server";
 
 describe("focus tools plugin", () => {
   it("registers deterministic client and server contracts", () => {
     expect(focusBoardTemplate.defaultViewIds).toEqual(["focus-tools:focus-view"]);
-    expect(focusToolsPlugin.manifest.id).toBe("focus-tools");
+    expect(focusToolsPlugin.manifest).toEqual(focusToolsManifest);
+    expect(focusToolsServerPlugin.manifest).toEqual(focusToolsManifest);
+    expect(focusToolsManifest.serverModule).toBe("./server");
     expect(focusToolsPlugin.views.map((entry) => entry.id)).toEqual([
       "focus-tools:focus-view",
     ]);

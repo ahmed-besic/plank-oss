@@ -91,6 +91,46 @@ export interface WorkspaceOverviewData {
       label: string
       description?: string
     }>
+    features?: {
+      views: Array<{
+        id: string
+        label: string
+        description?: string
+      }>
+      propertyTypes: Array<{
+        id: string
+        label: string
+        description?: string
+      }>
+      commands: Array<{
+        id: string
+        label: string
+        keywords?: string[]
+      }>
+      uiExtensions: Array<{
+        id: string
+        slot: string
+        label: string
+        order?: number
+        requiredPermissions?: string[]
+      }>
+      boardTypeTemplates: Array<{
+        id: string
+        name: string
+        description?: string
+        version: number
+      }>
+      cardTypeManifests: Array<{
+        typeKey: string
+        schemaVersion: number
+      }>
+      cardChangeHandlers: Array<{
+        id: string
+        event: string
+      }>
+    }
+    config?: Record<string, unknown>
+    unavailableReason?: string
     installed: boolean
     status: 'enabled' | 'disabled'
   }>

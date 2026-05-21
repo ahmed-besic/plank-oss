@@ -18,7 +18,7 @@ export const taskBoardPluginManifest: PluginManifest = {
   capabilities: ["cards:read", "cards:write", "boardViews:read"],
   trustLevel: "trusted-local",
   description: "Adds task cards, sub-tasks, and a task-focused board view.",
-  serverModule: "task-board",
+  serverModule: "./server",
 };
 
 export const taskCardManifest: CardTypeManifest = {
@@ -116,4 +116,11 @@ export const taskBoardClientSummaries = {
     },
   ],
   propertyTypes: [{ id: "task-board:priority", label: "Priority" }],
+  commands: [
+    {
+      id: "task-board:add-task",
+      label: "Create task",
+      keywords: ["task", "todo", "create"],
+    },
+  ],
 };

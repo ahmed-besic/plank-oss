@@ -20,12 +20,26 @@ Runtime permissions are declared in `manifest.capabilities` using the current co
 
 | Plugin | Package | Purpose |
 | --- | --- | --- |
-| `core-kanban` | `packages/plugins/core-kanban` | Default board view, core property editors, starter commands, legacy status summary slot |
+| `core-kanban` | `packages/plugins/core-kanban` | Default board view, core property editors, starter commands, status summary UI fill |
 | `calendar-board` | `packages/plugins/calendar-board` | Month calendar view over timestamp fields |
 | `focus-tools` | `packages/plugins/focus-tools` | Focus view, confidence property type, card drawer panel fill, example command, example card-change hook |
 | `task-board` | `packages/plugins/task-board` | Task board view, task card manifest, task template, subtask workflow |
 
 `core-kanban` and `calendar-board` are required builtins. `focus-tools` and `task-board` are workspace-toggleable through `workspaceExtensions`.
+
+## Package policy
+
+Local plugin packages must expose the same three package entrypoints:
+
+- `.` for the client plugin entrypoint
+- `./server` for the server plugin entrypoint
+- `./manifest` for shared manifest, template, and package metadata
+
+Package names must follow `@plank/plugin-${manifest.id}`. Client and server entries must import the shared manifest from `./manifest`; they should not duplicate manifest literals. Current manifests use semver-like `version` values, explicit `trustLevel`, explicit runtime permissions, and `serverModule: "./server"` when the package has a server export.
+
+`scripts/sync-plugins.mjs` validates this policy before generating builtin registries. Architecture tests also enforce valid package exports, trust levels, permissions, hooks, deterministic registry order, and the server/client import boundary.
+
+Plugin authors should include migration notes with SDK/runtime changes that affect manifests, feature registrations, persisted config, or permission requirements. A short package-local changelog entry is enough for trusted-local packages until an external distribution model exists.
 
 ## Supported plugin surfaces
 
@@ -48,7 +62,11 @@ Plugin package code may use feature helpers such as `defineViewFeature`, `define
 
 - `shell.sidebar.navigation`
 - `board.header.actions`
-- `card.drawer.panels`
+- `card.header`
+- `card.metadata.primary`
+- `card.body.tools`
+- `card.sidebar.panels`
+- `card.footer.activity`
 - `settings.workspace.panels`
 
 Fills are ordered by optional `order`, then builtin plugin package order, then fill id. Fills may declare `requiredPermissions`; the runtime only renders them when the plugin package manifest includes those runtime permission strings. These runtime permission gates are separate from domain card/view `capabilities`.
@@ -67,8 +85,7 @@ Persisted board views are view feature instances. New rows include `featureInsta
 - views are rendered from the active plugin list on the board route
 - commands are collected into the command palette
 - property types are used by board editing and the card drawer
-- UI extension fills are rendered in shell, board header, card drawer panel, and workspace settings slots
-- legacy card slots are rendered through the card drawer panel slot adapter
+- UI extension fills are rendered in shell, board header, named card surface, and workspace settings slots
 - board views own card presentation directly
 
 The runtime rejects duplicate board type template ids when the builtin registry is created.

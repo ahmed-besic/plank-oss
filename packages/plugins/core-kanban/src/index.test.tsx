@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { coreKanbanBoardTemplate, coreKanbanPlugin } from "./index";
+import { coreKanbanManifest } from "./manifest";
 import { coreKanbanServerPlugin } from "./server";
 
 describe("core kanban plugin", () => {
   it("registers the default kanban template and board view contract", () => {
     expect(coreKanbanBoardTemplate.defaultViewIds).toEqual(["core-kanban:board"]);
-    expect(coreKanbanPlugin.manifest.id).toBe("core-kanban");
+    expect(coreKanbanPlugin.manifest).toEqual(coreKanbanManifest);
+    expect(coreKanbanServerPlugin.manifest).toEqual(coreKanbanManifest);
+    expect(coreKanbanManifest.serverModule).toBe("./server");
     expect(coreKanbanServerPlugin.boardTypeTemplates.map((entry) => entry.id)).toEqual([
       "core-kanban:default",
     ]);

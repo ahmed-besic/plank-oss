@@ -700,6 +700,64 @@ describe("board functions", () => {
     });
   });
 
+  it("exposes extension feature metadata, normalized config, and unavailable reasons in overview", async () => {
+    const db = createBaseDb();
+    const ctx = createMockCtx({ db });
+
+    await (
+      setExtensionStatus as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      pluginId: "focus-tools",
+      status: "enabled",
+    });
+
+    const overview = await (
+      getOverview as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+    });
+
+    const core = overview.extensions.find(
+      (extension: any) => extension.manifest.id === "core-kanban",
+    );
+    const focus = overview.extensions.find(
+      (extension: any) => extension.manifest.id === "focus-tools",
+    );
+    const calendar = overview.extensions.find(
+      (extension: any) => extension.manifest.id === "calendar-board",
+    );
+
+    expect(core).toMatchObject({
+      installed: true,
+      status: "enabled",
+      features: {
+        commands: expect.arrayContaining([
+          expect.objectContaining({ id: "core-kanban:create-card" }),
+        ]),
+        uiExtensions: expect.arrayContaining([
+          expect.objectContaining({ id: "core-kanban:status" }),
+        ]),
+        boardTypeTemplates: expect.arrayContaining([
+          expect.objectContaining({ id: "core-kanban:default" }),
+        ]),
+      },
+    });
+    expect(focus).toMatchObject({
+      config: {},
+      features: {
+        cardChangeHandlers: [
+          expect.objectContaining({ id: "focus-tools:card-change-audit" }),
+        ],
+      },
+      status: "enabled",
+    });
+    expect(calendar?.unavailableReason).toBeUndefined();
+  });
+
   it("rejects unsupported board view config keys for known views", async () => {
     const db = createBaseDb();
     db.rows("boardViews").push({

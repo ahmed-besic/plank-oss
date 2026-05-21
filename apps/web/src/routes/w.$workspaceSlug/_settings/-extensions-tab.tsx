@@ -16,6 +16,20 @@ function formatTrustLevel(value?: string) {
   }
 }
 
+function formatList(values: string[]) {
+  return values.length ? values.join(', ') : 'none'
+}
+
+function formatConfig(config?: Record<string, unknown>) {
+  const entries = Object.entries(config ?? {})
+  if (!entries.length) {
+    return 'none'
+  }
+  return entries
+    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`)
+    .join(' · ')
+}
+
 export function ExtensionsTab({ data }: { data: SettingsData }) {
   const { overview, convexClient, invalidate, workspaceSlug } = data
   const diagnosticsQuery = useQuery({
@@ -63,10 +77,42 @@ export function ExtensionsTab({ data }: { data: SettingsData }) {
                 {ext.manifest.description ?? 'Workspace extension'}
               </p>
               <p className="extensions-desc">
-                Trust: {formatTrustLevel(ext.manifest.trustLevel)} · Permissions:{' '}
-                {ext.manifest.capabilities.length
-                  ? ext.manifest.capabilities.join(', ')
-                  : 'none'}
+                Trust: {formatTrustLevel(ext.manifest.trustLevel)} · Version:{' '}
+                {ext.manifest.version} · Permissions:{' '}
+                {formatList(ext.manifest.capabilities)}
+              </p>
+              <p className="extensions-desc">
+                Hooks: {formatList(ext.manifest.hooks)}
+              </p>
+              {ext.unavailableReason ? (
+                <p className="extensions-desc">{ext.unavailableReason}</p>
+              ) : null}
+              <div className="extensions-desc" aria-label={`${ext.manifest.name} registered features`}>
+                Registered features:{' '}
+                {[
+                  `${ext.features?.views.length ?? ext.views.length} views`,
+                  `${ext.features?.propertyTypes.length ?? ext.propertyTypes.length} property types`,
+                  `${ext.features?.commands.length ?? 0} commands`,
+                  `${ext.features?.uiExtensions.length ?? 0} UI fills`,
+                  `${ext.features?.boardTypeTemplates.length ?? 0} templates`,
+                  `${ext.features?.cardTypeManifests.length ?? 0} card types`,
+                  `${ext.features?.cardChangeHandlers.length ?? 0} handlers`,
+                ].join(' · ')}
+              </div>
+              <div className="extensions-desc" aria-label={`${ext.manifest.name} feature details`}>
+                Feature IDs:{' '}
+                {formatList([
+                  ...(ext.features?.views ?? ext.views).map((feature) => feature.id),
+                  ...(ext.features?.propertyTypes ?? ext.propertyTypes).map((feature) => feature.id),
+                  ...(ext.features?.commands ?? []).map((feature) => feature.id),
+                  ...(ext.features?.uiExtensions ?? []).map((feature) => `${feature.id} (${feature.slot})`),
+                  ...(ext.features?.boardTypeTemplates ?? []).map((feature) => feature.id),
+                  ...(ext.features?.cardTypeManifests ?? []).map((feature) => feature.typeKey),
+                  ...(ext.features?.cardChangeHandlers ?? []).map((feature) => feature.id),
+                ])}
+              </div>
+              <p className="extensions-desc" aria-label={`${ext.manifest.name} config`}>
+                Config: {formatConfig(ext.config)}
               </p>
               {recentDiagnostics.length ? (
                 <div className="extensions-desc" aria-label={`${ext.manifest.name} diagnostics`}>

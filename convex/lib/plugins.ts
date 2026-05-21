@@ -92,21 +92,54 @@ async function projectWorkflowEventToCardChangeEvents(
 }
 
 export function listBuiltinPlugins() {
-	return builtinServerPluginRegistry.plugins
-		.filter((plugin) => !isRequiredBuiltinPluginId(plugin.manifest.id))
-		.map((plugin) => ({
-			manifest: plugin.manifest,
-			views: (plugin.clientSummaries?.views ?? []).map((view) => ({
-				id: view.id,
-				label: view.label,
-				description: view.description,
-			})),
-			propertyTypes: (plugin.clientSummaries?.propertyTypes ?? []).map((propertyType) => ({
-				id: propertyType.id,
-				label: propertyType.label,
-				description: propertyType.description,
-			})),
+	return builtinServerPluginRegistry.plugins.map((plugin) => {
+		const views = (plugin.clientSummaries?.views ?? []).map((view) => ({
+			id: view.id,
+			label: view.label,
+			description: view.description,
 		}));
+		const propertyTypes = (plugin.clientSummaries?.propertyTypes ?? []).map((propertyType) => ({
+			id: propertyType.id,
+			label: propertyType.label,
+			description: propertyType.description,
+		}));
+
+		return {
+			manifest: plugin.manifest,
+			views,
+			propertyTypes,
+			features: {
+				views,
+				propertyTypes,
+				commands: (plugin.clientSummaries?.commands ?? []).map((command) => ({
+					id: command.id,
+					label: command.label,
+					keywords: command.keywords,
+				})),
+				uiExtensions: (plugin.clientSummaries?.uiExtensions ?? []).map((extension) => ({
+					id: extension.id,
+					slot: extension.slot,
+					label: extension.label,
+					order: extension.order,
+					requiredPermissions: extension.requiredPermissions,
+				})),
+				boardTypeTemplates: plugin.boardTypeTemplates.map((template) => ({
+					id: template.id,
+					name: template.name,
+					description: template.description,
+					version: template.version,
+				})),
+				cardTypeManifests: plugin.cardTypeManifests.map((manifest) => ({
+					typeKey: manifest.typeKey,
+					schemaVersion: manifest.schemaVersion,
+				})),
+				cardChangeHandlers: plugin.cardChangeHandlers.map((handler) => ({
+					id: handler.id,
+					event: handler.event,
+				})),
+			},
+		};
+	});
 }
 
 export function getActivePluginIds(
@@ -617,10 +650,17 @@ export function mergePluginState(installed: Doc<"workspaceExtensions">[]) {
 
 	return listBuiltinPlugins().map((plugin) => {
 		const state = installedMap.get(plugin.manifest.id);
+		const isRequired = isRequiredBuiltinPluginId(plugin.manifest.id);
+		const status = isRequired ? "enabled" : state?.status ?? "disabled";
 		return {
 			...plugin,
-			installed: state?.status === "enabled",
-			status: state?.status ?? "disabled",
+			config: unwrapWorkspaceExtensionConfig(state?.config),
+			installed: isRequired || Boolean(state),
+			status,
+			unavailableReason:
+				status === "disabled"
+					? "Disabled extensions do not contribute views, commands, UI fills, templates, or handlers."
+					: undefined,
 		};
 	});
 }

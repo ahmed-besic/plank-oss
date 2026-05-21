@@ -22,3 +22,21 @@ export function collectEnabledUiExtensions({
     slot,
   })
 }
+
+export function collectEnabledUiExtensionsForSlots({
+  enabledPluginIds,
+  registry,
+  slots,
+}: {
+  enabledPluginIds: string[]
+  registry: ClientPluginRegistry
+  slots: PlatformUiSlotId[]
+}) {
+  return slots.flatMap((slot) =>
+    collectEnabledUiExtensions({
+      enabledPluginIds,
+      registry,
+      slot,
+    }),
+  )
+}

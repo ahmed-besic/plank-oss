@@ -195,7 +195,7 @@ export const focusToolsPlugin = defineClientPlugin(
 
     registerUiExtension({
       id: "focus-tools:confidence-slot",
-      slot: "card.drawer.panels",
+      slot: "card.sidebar.panels",
       label: "Focus confidence",
       order: -10,
       requiredPermissions: ["cards:read"],

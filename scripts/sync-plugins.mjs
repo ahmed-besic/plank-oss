@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertPluginPackagePolicy,
+  getPluginExportPath,
+  pluginIdFromPackageName,
+} from "./plugin-package-policy.mjs";
 
 const REQUIRED_BUILTIN_PLUGIN_IDS = ["core-kanban", "calendar-board"];
 
@@ -24,34 +29,6 @@ const serverOutputPath = path.join(
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function readPluginEntryPath(packageDir, packageJson) {
-  const entry =
-    typeof packageJson.exports === "string"
-      ? packageJson.exports
-      : packageJson.exports?.["."];
-
-  if (typeof entry !== "string") {
-    throw new Error(
-      `Plugin package ${packageJson.name ?? packageDir} must expose "." as a string export`,
-    );
-  }
-
-  return path.join(packageDir, entry.replace(/^\.\//, ""));
-}
-
-function readPluginServerEntryPath(packageDir, packageJson) {
-  const entry =
-    typeof packageJson.exports === "object" ? packageJson.exports?.["./server"] : null;
-
-  if (typeof entry !== "string") {
-    throw new Error(
-      `Plugin package ${packageJson.name ?? packageDir} must expose "./server" as a string export`,
-    );
-  }
-
-  return path.join(packageDir, entry.replace(/^\.\//, ""));
 }
 
 function readPluginExportName(entryPath, defineFunctionName) {
@@ -81,16 +58,6 @@ function relativeImport(fromFile, toFile) {
   return normalized.startsWith(".") ? normalized : `./${normalized}`;
 }
 
-function pluginIdFromPackageName(packageName) {
-  const prefix = "@plank/plugin-";
-  if (!packageName.startsWith(prefix)) {
-    throw new Error(
-      `Expected plugin package name to start with ${prefix}, got ${packageName}`,
-    );
-  }
-  return packageName.slice(prefix.length);
-}
-
 function listPluginPackages() {
   return fs
     .readdirSync(pluginsRoot, { withFileTypes: true })
@@ -100,9 +67,16 @@ function listPluginPackages() {
       const packageJsonPath = path.join(packageDir, "package.json");
       const packageJson = readJson(packageJsonPath);
       const packageName = String(packageJson.name);
+      const policy = assertPluginPackagePolicy(packageDir);
       const pluginId = pluginIdFromPackageName(packageName);
-      const entryPath = readPluginEntryPath(packageDir, packageJson);
-      const serverEntryPath = readPluginServerEntryPath(packageDir, packageJson);
+      if (!pluginId) {
+        throw new Error(`Expected plugin package name to start with @plank/plugin-, got ${packageName}`);
+      }
+      const entryPath = getPluginExportPath(packageDir, packageJson, ".");
+      const serverEntryPath = getPluginExportPath(packageDir, packageJson, "./server");
+      if (!entryPath || !serverEntryPath) {
+        throw new Error(policy.diagnostics.join("\n"));
+      }
       const exportName = readPluginExportName(entryPath, "defineClientPlugin");
       const serverExportName = readPluginExportName(
         serverEntryPath,

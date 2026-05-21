@@ -10,7 +10,6 @@ import {
 import { createPortal } from 'react-dom'
 import {
   Activity,
-  Bot,
   CalendarDays,
   ChevronDown,
   Command,
@@ -21,16 +20,14 @@ import {
   Plug,
   Search,
   Settings2,
-  Shield,
-  Sparkles,
   SquareKanban,
   Trash2,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Input, cn } from '@plank/ui'
+import { Button, cn } from '@plank/ui'
 import type { BoardViewConfigScalar } from '@plank/domain'
-import type { PlatformClientServices } from '@plank/plugin-sdk'
+import type { PlatformClientServices, PlatformUiSlotId } from '@plank/plugin-sdk'
 import { createPermissionedClientServices } from '@plank/plugin-runtime'
 import { toast } from 'sonner'
 import { api } from '@convex/_generated/api'
@@ -38,11 +35,18 @@ import type { Id } from '@convex/_generated/dataModel'
 import { CardDrawer } from '../../components/card-drawer'
 import { WorkspaceShell } from '../../components/workspace-shell'
 import { CommandPalette } from '../../components/command-palette'
-import type { CommandPaletteItem } from '../../components/command-palette'
+import { buildBoardCommandItems } from '../../features/board/command-items'
+import { BoardSearchDialog } from '../../features/board/BoardSearchDialog'
+import { BoardActivityPage } from '../../features/collaboration/BoardActivityPage'
 import { CardCommentsPanel } from '../../features/collaboration/CardCommentsPanel'
+import { BoardExtensionsPage } from '../../features/extensions/BoardExtensionsPage'
+import type { ExtensionCategory } from '../../features/extensions/BoardExtensionsPage'
 import { useBoardActions } from '../../lib/use-board-actions'
 import { createBoardPlatformServices } from '../../lib/plugin-platform-services'
-import { collectEnabledUiExtensions } from '../../lib/plugin-ui-extensions'
+import {
+  collectEnabledUiExtensions,
+  collectEnabledUiExtensionsForSlots,
+} from '../../lib/plugin-ui-extensions'
 import { useHydrated } from '../../lib/use-hydrated'
 import { useOnlineState } from '../../lib/use-online-state'
 import { usePlankApp } from '../../lib/providers'
@@ -52,7 +56,6 @@ import type {
   BoardPresenceEntry,
   WorkspaceOverviewData,
 } from '../../lib/types'
-import { getMemberDisplayName, getMemberInitials } from '../../lib/member-display'
 
 const createRoute = createFileRoute as any
 
@@ -70,7 +73,6 @@ export const Route = createRoute('/w/$workspaceSlug/boards/$boardId')({
 })
 
 type BoardUtilityPage = 'none' | 'extensions' | 'activity'
-type ExtensionCategory = 'all' | 'core' | 'productivity' | 'automation'
 const BOARD_PRESENCE_ACTIVE_MS = 90_000
 const BOARD_PRESENCE_HEARTBEAT_MS = 45_000
 
@@ -104,73 +106,8 @@ function getViewIcon(viewId: string, label: string) {
   return SquareKanban
 }
 
-function getExtensionCategory(
-  extension: WorkspaceOverviewData['extensions'][number],
-): Exclude<ExtensionCategory, 'all'> {
-  const id = extension.manifest.id.toLowerCase()
-  const hooks = extension.manifest.hooks.join(' ').toLowerCase()
-
-  if (id.startsWith('core-') || id.includes('kanban')) {
-    return 'core'
-  }
-
-  if (id.includes('behavior') || hooks.includes('registercardchange')) {
-    return 'automation'
-  }
-
-  return 'productivity'
-}
-
-function formatRelativeTime(timestamp: number) {
-  const diffMs = Date.now() - timestamp
-  const diffMinutes = Math.max(1, Math.round(diffMs / 60_000))
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m ago`
-  }
-  const diffHours = Math.round(diffMinutes / 60)
-  if (diffHours < 24) {
-    return `${diffHours}h ago`
-  }
-  const diffDays = Math.round(diffHours / 24)
-  return `${diffDays}d ago`
-}
-
-function getLabelInitials(label: string) {
-  const parts = label.split(/[\s@._-]+/).filter(Boolean)
-  if (parts.length === 0) {
-    return '?'
-  }
-  return parts
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join('')
-}
-
 function isPersistedCardId(cardId: string | undefined): cardId is Id<'cards'> {
   return typeof cardId === 'string' && !cardId.startsWith('optimistic:')
-}
-
-function getActivitySummary(entry: BoardActivityEntry) {
-  switch (entry.kind) {
-    case 'new_card':
-      return 'created a card'
-    case 'move':
-      return 'moved a card'
-    case 'delete':
-      return 'deleted a card'
-    case 'title':
-      return 'updated the title'
-    case 'description':
-      return 'updated the description'
-    case 'property':
-      return entry.propertyKeys?.length
-        ? `updated ${entry.propertyKeys.join(', ')}`
-        : 'updated properties'
-    case 'tag':
-      return 'changed tags'
-    default:
-      return 'changed a card'
-  }
 }
 
 function BoardRoute() {
@@ -320,19 +257,6 @@ function BoardRoute() {
     }
   }, [isViewMenuOpen])
   useEffect(() => {
-    if (!searchOpen) {
-      return
-    }
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setSearchOpen(false)
-      }
-    }
-    window.addEventListener('keydown', onEscape)
-    return () => window.removeEventListener('keydown', onEscape)
-  }, [searchOpen])
-
-  useEffect(() => {
     setIsBoardMenuOpen(false)
   }, [boardId])
 
@@ -477,10 +401,16 @@ function BoardRoute() {
   const activePluginSlots = useMemo(
     () =>
       boardData
-        ? collectEnabledUiExtensions({
+        ? collectEnabledUiExtensionsForSlots({
             registry: pluginRegistry,
             enabledPluginIds: boardData.enabledPluginIds,
-            slot: 'card.drawer.panels',
+            slots: [
+              'card.header',
+              'card.metadata.primary',
+              'card.body.tools',
+              'card.sidebar.panels',
+              'card.footer.activity',
+            ] satisfies PlatformUiSlotId[],
           })
         : [],
     [boardData, pluginRegistry],
@@ -505,47 +435,17 @@ function BoardRoute() {
       showToast: (message) => toast(message),
     })
   }, [actions, activeViewId, navigate])
-  const commands = useMemo<CommandPaletteItem[]>(() => {
-    return activePlugins.flatMap((plugin) =>
-      plugin.commands.map((command) => {
-        const pluginServices = createPermissionedClientServices({
-          plugin,
-          services: platformServices,
-        })
-        return {
-          id: command.id,
-          label: command.label,
-          keywords: command.keywords,
-          run: async () =>
-          command.run({
-            workspaceSlug,
-            boardId,
-            addProperty: pluginServices.properties.add,
-            createCard: async () => {
-              const firstColumn = boardData?.board.columns[0]
-              if (firstColumn) {
-                await pluginServices.cards.create(
-                  'Plugin card',
-                  firstColumn.id,
-                  boardData.cardTypes[0]?.id,
-                )
-              }
-            },
-            navigate: pluginServices.navigation.navigate,
-            toast: pluginServices.toast.show,
-            services: pluginServices,
-          }),
-        }
+  const commands = useMemo(
+    () =>
+      buildBoardCommandItems({
+        activePlugins,
+        boardData,
+        boardId,
+        platformServices,
+        workspaceSlug,
       }),
-    )
-  }, [
-    activePlugins,
-    boardData?.board.columns,
-    boardData?.cardTypes,
-    boardId,
-    platformServices,
-    workspaceSlug,
-  ])
+    [activePlugins, boardData, boardId, platformServices, workspaceSlug],
+  )
   const boardHeaderExtensions = useMemo(
     () =>
       boardData
@@ -899,11 +799,6 @@ function BoardRoute() {
     toast.success('Saved as board default properties.')
   }
   const removableViewCount = boardData?.views.length ?? 0
-  const filteredExtensions = (overviewData?.extensions ?? []).filter(
-    (extension) =>
-      extensionCategory === 'all' ||
-      getExtensionCategory(extension) === extensionCategory,
-  )
 
   useEffect(() => {
     if (!boardData || !activeViewId) {
@@ -1258,250 +1153,28 @@ function BoardRoute() {
 
               <div className="min-h-0 flex-1 overflow-hidden">
                 {utilityPage === 'activity' ? (
-                  <div className="mx-auto max-w-6xl px-6 py-8 animate-fade-in">
-                    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-grape-vine">
-                          Activity
-                        </h1>
-                        <p className="mt-1 text-sm text-lavender-bloom">
-                          Live board presence and recent workflow activity from
-                          the canonical event projection.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-xl bg-electric-violet/10 px-3 py-1.5 text-xs font-semibold text-electric-violet">
-                          {boardPresence.length} active now
-                        </div>
-                        <div className="rounded-xl bg-cloud-white px-3 py-1.5 text-xs font-semibold text-lavender-bloom">
-                          {boardActivity.length} recent events
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-                      <section className="rounded-2xl border border-ghost-gray bg-cloud-white p-4">
-                        <div className="mb-4 flex items-center gap-2">
-                          <Users className="h-4 w-4 text-electric-violet" />
-                          <h2 className="text-sm font-semibold text-grape-vine">
-                            Present on this board
-                          </h2>
-                        </div>
-                        <div className="space-y-2">
-                          {boardPresence.length ? (
-                            boardPresence.map((entry) => (
-                              <div
-                                  key={entry.userId}
-                                className="flex items-center gap-3 rounded-xl border border-ghost-gray/70 px-3 py-2.5"
-                              >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-electric-violet/10 text-xs font-bold text-electric-violet">
-                                  {getMemberInitials(entry)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-semibold text-grape-vine">
-                                    {getMemberDisplayName(entry)}
-                                  </p>
-                                  <p className="text-xs text-lavender-bloom">
-                                    {entry.isViewer
-                                      ? 'You'
-                                      : (entry.role ?? 'Member')}{' '}
-                                    ·{' '}
-                                    {formatRelativeTime(entry.lastHeartbeatAt)}
-                                  </p>
-                                </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="rounded-xl border border-dashed border-ghost-gray px-3 py-6 text-center text-sm text-lavender-bloom">
-                              No active viewers right now.
-                            </div>
-                          )}
-                        </div>
-                      </section>
-
-                      <section className="rounded-2xl border border-ghost-gray bg-cloud-white p-4">
-                        <div className="mb-4 flex items-center gap-2">
-                          <Activity className="h-4 w-4 text-electric-violet" />
-                          <h2 className="text-sm font-semibold text-grape-vine">
-                            Recent board activity
-                          </h2>
-                        </div>
-                        <div className="space-y-2">
-                          {activityQuery.isLoading ? (
-                            <div className="rounded-xl border border-dashed border-ghost-gray px-3 py-6 text-center text-sm text-lavender-bloom">
-                              Loading activity…
-                            </div>
-                          ) : boardActivity.length ? (
-                            boardActivity.map((entry) => (
-                              <button
-                                key={entry.id}
-                                className="flex w-full items-start gap-3 rounded-xl border border-ghost-gray/70 px-3 py-3 text-left transition-all duration-150 hover:border-electric-violet/20 hover:bg-electric-violet/[0.02]"
-                                onClick={() =>
-                                  updateSearch((current: any) => ({
-                                    ...current,
-                                    card: entry.cardId,
-                                  }))
-                                }
-                                type="button"
-                              >
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lavender-mist text-xs font-bold text-grape-vine">
-                                  {getLabelInitials(entry.actorLabel)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-semibold text-grape-vine">
-                                    {entry.actorLabel}
-                                  </p>
-                                  <p className="mt-0.5 text-sm text-text-secondary">
-                                    {getActivitySummary(entry)}{' '}
-                                    <span className="font-medium text-text-primary">
-                                      {entry.cardTitle}
-                                    </span>
-                                  </p>
-                                </div>
-                                <span className="shrink-0 text-xs text-lavender-bloom">
-                                  {formatRelativeTime(entry.createdAt)}
-                                </span>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="rounded-xl border border-dashed border-ghost-gray px-3 py-6 text-center text-sm text-lavender-bloom">
-                              No recent activity yet.
-                            </div>
-                          )}
-                        </div>
-                      </section>
-                    </div>
-                  </div>
+                  <BoardActivityPage
+                    boardActivity={boardActivity}
+                    boardPresence={boardPresence}
+                    isLoading={activityQuery.isLoading}
+                    onOpenCard={(cardId) =>
+                      updateSearch((current: any) => ({
+                        ...current,
+                        card: cardId,
+                      }))
+                    }
+                  />
                 ) : utilityPage === 'extensions' ? (
-                  <div className="mx-auto max-w-6xl px-6 py-8 animate-fade-in">
-                    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <h1 className="text-2xl font-bold tracking-tight text-grape-vine">
-                          Workspace Extensions
-                        </h1>
-                        <p className="mt-1 text-sm text-lavender-bloom">
-                          Enable or disable installed extensions without
-                          changing the canonical card model or the board action
-                          flow.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-xl bg-electric-violet/10 px-3 py-1.5 text-xs font-semibold text-electric-violet">
-                          {
-                            overviewData.extensions.filter(
-                              (extension) => extension.status === 'enabled',
-                            ).length
-                          }{' '}
-                          enabled
-                        </div>
-                        <Button onClick={openSettings} tone="ghost">
-                          Manage all settings
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]">
-                      <aside className="rounded-2xl border border-ghost-gray bg-cloud-white p-3">
-                        {[
-                          {
-                            id: 'all' as const,
-                            label: 'All Extensions',
-                            icon: Plug,
-                          },
-                          { id: 'core' as const, label: 'Core', icon: Shield },
-                          {
-                            id: 'productivity' as const,
-                            label: 'Productivity',
-                            icon: Sparkles,
-                          },
-                          {
-                            id: 'automation' as const,
-                            label: 'Automation',
-                            icon: Bot,
-                          },
-                        ].map((item) => {
-                          const Icon = item.icon
-                          return (
-                            <button
-                              key={item.id}
-                              className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition-all duration-200 ${
-                                extensionCategory === item.id
-                                  ? 'bg-electric-violet/10 text-electric-violet'
-                                  : 'text-muted-violet hover:bg-lavender-mist hover:text-grape-vine'
-                              }`}
-                              onClick={() => setExtensionCategory(item.id)}
-                              type="button"
-                            >
-                              <Icon className="h-4 w-4" />
-                              {item.label}
-                            </button>
-                          )
-                        })}
-                      </aside>
-
-                      <section className="rounded-2xl border border-ghost-gray bg-cloud-white p-4">
-                        <div className="space-y-2">
-                          {filteredExtensions.map((extension) => (
-                            <div
-                              key={extension.manifest.id}
-                              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ghost-gray/60 px-4 py-3 transition-all duration-200 hover:border-electric-violet/20 hover:bg-electric-violet/[0.02] hover:shadow-sm"
-                            >
-                              <div>
-                                <p className="text-sm font-semibold text-grape-vine">
-                                  {extension.manifest.name}
-                                </p>
-                                <p className="mt-0.5 text-xs text-lavender-bloom">
-                                  {extension.manifest.description ??
-                                    'Workspace extension'}
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`rounded-lg border px-2 py-0.5 text-xs font-semibold ${
-                                    extension.status === 'enabled'
-                                      ? 'border-success-green/20 bg-success-green/10 text-success-green'
-                                      : 'border-ghost-gray bg-lavender-mist text-lavender-bloom'
-                                  }`}
-                                >
-                                  {extension.status === 'enabled'
-                                    ? 'Enabled'
-                                    : 'Disabled'}
-                                </span>
-                                <Button
-                                  disabled={toggleExtension.isPending}
-                                  onClick={() =>
-                                    toggleExtension.mutate({
-                                      pluginId: extension.manifest.id,
-                                      status:
-                                        extension.status === 'enabled'
-                                          ? 'disabled'
-                                          : 'enabled',
-                                    })
-                                  }
-                                  tone={
-                                    extension.status === 'enabled'
-                                      ? 'ghost'
-                                      : 'primary'
-                                  }
-                                >
-                                  {extension.status === 'enabled'
-                                    ? 'Disable'
-                                    : 'Enable'}
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-
-                          {!filteredExtensions.length ? (
-                            <div className="rounded-xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
-                              No extensions match this filter.
-                            </div>
-                          ) : null}
-                        </div>
-                      </section>
-                    </div>
-                  </div>
+                  <BoardExtensionsPage
+                    extensionCategory={extensionCategory}
+                    isToggling={toggleExtension.isPending}
+                    onOpenSettings={openSettings}
+                    onSetExtensionCategory={setExtensionCategory}
+                    onToggleExtension={(pluginId, status) =>
+                      toggleExtension.mutate({ pluginId, status })
+                    }
+                    overview={overviewData}
+                  />
                 ) : pluginView ? (
                   <div className="h-full overflow-auto px-3 pb-4 pt-3 md:px-4">
                     {(() => {
@@ -1580,60 +1253,18 @@ function BoardRoute() {
         />
       ) : null}
       {searchOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-grape-vine/30 px-4 pt-24 backdrop-blur-sm animate-fade-in"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setSearchOpen(false)
-            }
-          }}
-        >
-          <div className="w-full max-w-2xl animate-scale-in rounded-2xl border border-ghost-gray bg-cloud-white p-4 shadow-elevated">
-            <div className="flex items-center gap-3 rounded-xl border border-ghost-gray bg-lavender-mist px-4 py-2.5">
-              <Search className="h-4 w-4 text-lavender-bloom" />
-              <Input
-                autoFocus
-                className="border-none bg-transparent px-0 shadow-none focus:border-none"
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Find card by title"
-                value={searchTerm}
-              />
-            </div>
-            <div className="mt-3 space-y-1">
-              {searchResults?.map((result) => (
-                <button
-                  key={result.id}
-                  className="w-full rounded-xl px-4 py-3 text-left transition-all duration-200 hover:bg-electric-violet/8"
-                  onClick={() => {
-                    setSearchOpen(false)
-                    updateSearch((current: any) => ({
-                      ...current,
-                      card: result.id,
-                    }))
-                  }}
-                  type="button"
-                >
-                  <span className="block text-sm font-semibold text-grape-vine">
-                    {result.title}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-lavender-bloom">
-                    Open card details
-                  </span>
-                </button>
-              ))}
-              {searchTerm.trim() && !searchResults?.length ? (
-                <p className="px-2 py-4 text-sm text-lavender-bloom">
-                  No cards match that search.
-                </p>
-              ) : null}
-              {!searchTerm.trim() ? (
-                <p className="px-2 py-4 text-sm text-lavender-bloom">
-                  Start typing to search the current board.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        <BoardSearchDialog
+          onClose={() => setSearchOpen(false)}
+          onOpenCard={(cardId) =>
+            updateSearch((current: any) => ({
+              ...current,
+              card: cardId,
+            }))
+          }
+          searchResults={searchResults}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+        />
       ) : null}
 
       {activeCard && boardData ? (

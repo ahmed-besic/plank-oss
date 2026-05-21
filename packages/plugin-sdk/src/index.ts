@@ -23,7 +23,11 @@ export type PlatformPermission = PluginRuntimePermission;
 export type PlatformUiSlotId =
 	| "shell.sidebar.navigation"
 	| "board.header.actions"
-	| "card.drawer.panels"
+	| "card.header"
+	| "card.metadata.primary"
+	| "card.body.tools"
+	| "card.sidebar.panels"
+	| "card.footer.activity"
 	| "settings.workspace.panels";
 
 export interface PlatformServerCardSummary {
@@ -326,6 +330,13 @@ export interface PlankServerPlugin<TExtra = Record<string, never>> {
 		>;
 		propertyTypes?: Array<
 			Pick<PlankPropertyTypeDefinition, "id" | "label" | "description">
+		>;
+		commands?: Array<Pick<PlankCommandDefinition, "id" | "label" | "keywords">>;
+		uiExtensions?: Array<
+			Pick<
+				PlankUiExtensionDefinition,
+				"id" | "slot" | "label" | "order" | "requiredPermissions"
+			>
 		>;
 	};
 }

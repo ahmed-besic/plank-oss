@@ -18,7 +18,7 @@ export const focusToolsManifest: PluginManifest = {
   capabilities: ["cards:read", "cards:write", "boardViews:read"],
   trustLevel: "trusted-local",
   description: "Adds a focus-oriented view and confidence scoring.",
-  serverModule: "focus-tools",
+  serverModule: "./server",
 };
 
 export const focusBoardTemplate: PlankBoardTypeTemplate = {
@@ -47,6 +47,22 @@ export const focusToolsClientSummaries = {
       id: confidencePropertyType,
       label: "Confidence",
       description: "How confident is the team about this card?",
+    },
+  ],
+  commands: [
+    {
+      id: "focus-tools:add-confidence-property",
+      label: "Add confidence property",
+      keywords: ["confidence", "focus", "property"],
+    },
+  ],
+  uiExtensions: [
+    {
+      id: "focus-tools:confidence-slot",
+      slot: "card.sidebar.panels" as const,
+      label: "Focus confidence",
+      order: -10,
+      requiredPermissions: ["cards:read" as const],
     },
   ],
 };

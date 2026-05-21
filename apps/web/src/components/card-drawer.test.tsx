@@ -310,9 +310,15 @@ describe('CardDrawer', () => {
       ({ registerUiExtension }) => {
         registerUiExtension({
           id: 'test:native-panel',
-          slot: 'card.drawer.panels',
+          slot: 'card.sidebar.panels',
           label: 'Native panel',
           render: ({ card }) => <div>Native fill for {card?.meta.title}</div>,
+        })
+        registerUiExtension({
+          id: 'test:body-tool',
+          slot: 'card.body.tools',
+          label: 'Body tool',
+          render: ({ card }) => <div>Body tool for {card?.meta.title}</div>,
         })
       },
     )
@@ -324,11 +330,18 @@ describe('CardDrawer', () => {
     render(
       <CardDrawer
         activePluginPropertyTypes={coreKanban.propertyTypes}
-        activePluginSlots={getEnabledUiExtensions({
-          registry: createClientPluginRegistry([plugin]),
-          enabledPluginIds: ['test-panels'],
-          slot: 'card.drawer.panels',
-        })}
+        activePluginSlots={[
+          ...getEnabledUiExtensions({
+            registry: createClientPluginRegistry([plugin]),
+            enabledPluginIds: ['test-panels'],
+            slot: 'card.sidebar.panels',
+          }),
+          ...getEnabledUiExtensions({
+            registry: createClientPluginRegistry([plugin]),
+            enabledPluginIds: ['test-panels'],
+            slot: 'card.body.tools',
+          }),
+        ]}
         boardType={{
           id: 'boardType_1',
           workspaceId: 'workspace_1',
@@ -401,6 +414,8 @@ describe('CardDrawer', () => {
 
     fireEvent.click(screen.getByText('Native panel'))
     expect(screen.getByText('Native fill for Card')).toBeTruthy()
+    fireEvent.click(screen.getByText('Body tool'))
+    expect(screen.getByText('Body tool for Card')).toBeTruthy()
   })
 
   it('copies editor text without escaped hard-break backslashes', () => {

@@ -47,13 +47,17 @@ Plugin package manifests declare a trust level and runtime permissions. Missing 
 
 Runtime permissions currently use the coarse strings `cards:read`, `cards:write`, and `boardViews:read`. Access to sensitive client and server operations should flow through mediated platform services so permission denials can be enforced consistently and reported as structured diagnostics.
 
+Local plugin packages must pass package policy validation before generated registries are updated. The current policy requires explicit client, server, and manifest exports, semver-like manifest versions, valid trust and permission metadata, and shared manifest usage across client/server entrypoints. This is trusted-local hardening, not marketplace security or sandboxing.
+
+Workspace managers can inspect extension trust level, permissions, registered features, normalized config, enablement state, and recent diagnostics in workspace settings. Disabled non-required extensions do not contribute views, commands, UI fills, templates, or handlers until re-enabled.
+
 ## Reserved language
 
 Domain `capabilities` keep their current meaning: semantic card/view capabilities such as deadline, priority, completion, assignee, body, title, subtasks, status, and progress. They describe what a card type provides and what a view can use.
 
 Runtime permission gates may still use capability-style strings such as `cards:write`, but docs should call those "runtime permissions" or "capability gates" when needed to avoid confusing them with semantic card/view capabilities.
 
-UI extension fill placement uses runtime permission gates such as `cards:read` when a fill declares `requiredPermissions`. Slot names such as `card.drawer.panels` describe platform UI anchors only; they do not create new domain capabilities.
+UI extension fill placement uses runtime permission gates such as `cards:read` when a fill declares `requiredPermissions`. Slot names such as `card.sidebar.panels` and `card.body.tools` describe platform UI anchors only; they do not create new domain capabilities.
 
 ## Migration rule
 

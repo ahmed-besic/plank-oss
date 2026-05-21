@@ -497,6 +497,21 @@ function GenericCardDrawer({
 
         <div className="flex h-[calc(100%-48px)] flex-col">
           <div className="flex-1 overflow-y-auto scroll-smooth">
+            <CardDrawerPluginSlots
+              activePluginSlots={activePluginSlots}
+              boardType={boardType}
+              card={card}
+              cardType={cardType}
+              expandedPluginSlotId={expandedPluginSlotId}
+              propertyValues={propertyValues}
+              selectedTagIds={selectedTagIds}
+              services={platformServices}
+              setExpandedPluginSlotId={setExpandedPluginSlotId}
+              slot="card.header"
+              tagDefinitions={tagDefinitions}
+              title={title}
+              workspaceSlug={workspaceSlug}
+            />
             <div className="p-6">
               <textarea
                 className="mb-5 w-full resize-none overflow-hidden appearance-none border-none bg-transparent p-0 text-zinc-900 outline-none placeholder:text-zinc-300 focus:ring-0"
@@ -514,6 +529,21 @@ function GenericCardDrawer({
               />
 
               <div className="mb-5 border-b border-zinc-100 pb-5">
+                <CardDrawerPluginSlots
+                  activePluginSlots={activePluginSlots}
+                  boardType={boardType}
+                  card={card}
+                  cardType={cardType}
+                  expandedPluginSlotId={expandedPluginSlotId}
+                  propertyValues={propertyValues}
+                  selectedTagIds={selectedTagIds}
+                  services={platformServices}
+                  setExpandedPluginSlotId={setExpandedPluginSlotId}
+                  slot="card.metadata.primary"
+                  tagDefinitions={tagDefinitions}
+                  title={title}
+                  workspaceSlug={workspaceSlug}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {/* Row 1, Cell 1: Status */}
                   <div className="relative" ref={statusPopoverRef}>
@@ -1137,6 +1167,21 @@ function GenericCardDrawer({
                     Description
                   </h3>
                   <div className="flex items-center gap-2">
+                    <CardDrawerPluginSlots
+                      activePluginSlots={activePluginSlots}
+                      boardType={boardType}
+                      card={card}
+                      cardType={cardType}
+                      expandedPluginSlotId={expandedPluginSlotId}
+                      propertyValues={propertyValues}
+                      selectedTagIds={selectedTagIds}
+                      services={platformServices}
+                      setExpandedPluginSlotId={setExpandedPluginSlotId}
+                      slot="card.body.tools"
+                      tagDefinitions={tagDefinitions}
+                      title={title}
+                      workspaceSlug={workspaceSlug}
+                    />
                     <button
                       className="rounded px-2 py-1 text-xs font-medium text-text-tertiary transition hover:bg-white hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={!persistedCardId}
@@ -1211,6 +1256,22 @@ function GenericCardDrawer({
             selectedTagIds={selectedTagIds}
             services={platformServices}
             setExpandedPluginSlotId={setExpandedPluginSlotId}
+            slot="card.sidebar.panels"
+            tagDefinitions={tagDefinitions}
+            title={title}
+            workspaceSlug={workspaceSlug}
+          />
+          <CardDrawerPluginSlots
+            activePluginSlots={activePluginSlots}
+            boardType={boardType}
+            card={card}
+            cardType={cardType}
+            expandedPluginSlotId={expandedPluginSlotId}
+            propertyValues={propertyValues}
+            selectedTagIds={selectedTagIds}
+            services={platformServices}
+            setExpandedPluginSlotId={setExpandedPluginSlotId}
+            slot="card.footer.activity"
             tagDefinitions={tagDefinitions}
             title={title}
             workspaceSlug={workspaceSlug}
