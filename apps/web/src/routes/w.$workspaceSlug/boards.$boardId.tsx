@@ -158,6 +158,8 @@ function BoardRoute() {
     ...boardOptions,
     enabled: hydrated && auth.isAuthenticated,
   })
+  const boardData = boardQuery.data as BoardPageData | undefined
+  const hasLoadedBoard = Boolean(boardData && boardData.board.id === boardId)
   const searchOptions = convexQuery(api.search.searchBoardTitles, {
     workspaceSlug,
     boardId: boardId as never,
@@ -179,7 +181,7 @@ function BoardRoute() {
   })
   const presenceQuery = useQuery({
     ...presenceOptions,
-    enabled: hydrated && auth.isAuthenticated,
+    enabled: hydrated && auth.isAuthenticated && hasLoadedBoard,
   })
   const activityOptions = convexQuery(api.boards.getBoardActivityPage, {
     workspaceSlug,
@@ -189,7 +191,11 @@ function BoardRoute() {
   })
   const activityQuery = useQuery({
     ...activityOptions,
-    enabled: hydrated && auth.isAuthenticated && utilityPage === 'activity',
+    enabled:
+      hydrated &&
+      auth.isAuthenticated &&
+      hasLoadedBoard &&
+      utilityPage === 'activity',
   })
   const toggleExtension = useMutation({
     mutationFn: async ({
@@ -290,7 +296,6 @@ function BoardRoute() {
     }
   }, [isBoardMenuOpen])
 
-  const boardData = boardQuery.data as BoardPageData | undefined
   const overviewData = overviewQuery.data as WorkspaceOverviewData | undefined
   const boardPresence = useMemo(
     () =>

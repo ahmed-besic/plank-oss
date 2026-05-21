@@ -1003,6 +1003,49 @@ describe("board functions", () => {
     expect(secondPage.items.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("returns empty collaboration reads for stale deleted board ids", async () => {
+    const db = createBaseDb();
+    const boardIndex = db
+      .rows("boards")
+      .findIndex((board) => board._id === "board_1");
+    db.rows("boards").splice(boardIndex, 1);
+    const ctx = createMockCtx({ db });
+
+    const presence = await (
+      listBoardPresence as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+    });
+    expect(presence).toEqual({ items: [] });
+
+    const activity = await (
+      getBoardActivityPage as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+    });
+    expect(activity).toEqual({ items: [], nextCursor: null });
+
+    const relations = await (
+      getCardRelations as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+      cardId: "card_1",
+    });
+    expect(relations).toEqual({ outgoing: [], incoming: [] });
+  });
+
   it("rehomes cards when deleting a status", async () => {
     const db = createBaseDb();
     db.rows("cards").push(

@@ -4,7 +4,6 @@ import {
   getOptionalCurrentAuthUser,
   getWorkspaceAccessBySlugIfAuthenticated,
 } from "../../lib/auth";
-import { requireBoardWithType } from "../../lib/cardRuntime";
 import {
   getBoardViewScopeId,
   getCardScopeId,
@@ -61,11 +60,10 @@ export async function listBoardPresenceForViewer(
   }
 
   const { workspace, userId } = access;
-  await requireBoardWithType({
-    ctx,
-    workspaceId: workspace._id,
-    boardId: args.boardId,
-  });
+  const board = await ctx.db.get(args.boardId);
+  if (!board || board.workspaceId !== workspace._id) {
+    return { items: [] };
+  }
 
   const authUser = await getOptionalCurrentAuthUser(ctx);
   const [presenceRows, members] = await Promise.all([
@@ -125,11 +123,10 @@ export async function getBoardActivityPageForViewer(
   }
 
   const { workspace } = access;
-  await requireBoardWithType({
-    ctx,
-    workspaceId: workspace._id,
-    boardId: args.boardId,
-  });
+  const board = await ctx.db.get(args.boardId);
+  if (!board || board.workspaceId !== workspace._id) {
+    return { items: [], nextCursor: null };
+  }
 
   const pageSize = Math.max(1, Math.min(args.limit ?? 30, 100));
   const parsedCursor = parseActivityCursor(args.cursor);
