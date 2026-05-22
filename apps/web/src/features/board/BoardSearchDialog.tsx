@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '@plank/ui'
 
 export function BoardSearchDialog({
@@ -15,15 +15,50 @@ export function BoardSearchDialog({
   searchTerm: string
   setSearchTerm: (value: string) => void
 }) {
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const results = searchResults ?? []
+
   useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
         onClose()
+        return
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectedIndex((current) =>
+          results.length ? (current + 1) % results.length : 0,
+        )
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectedIndex((current) =>
+          results.length ? (current - 1 + results.length) % results.length : 0,
+        )
+        return
+      }
+
+      if (event.key === 'Enter') {
+        const result = results[selectedIndex]
+        if (!result) {
+          return
+        }
+        event.preventDefault()
+        onClose()
+        onOpenCard(result.id)
       }
     }
-    window.addEventListener('keydown', onEscape)
-    return () => window.removeEventListener('keydown', onEscape)
-  }, [onClose])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose, onOpenCard, results, selectedIndex])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [searchTerm])
 
   return (
     <div
@@ -46,14 +81,19 @@ export function BoardSearchDialog({
           />
         </div>
         <div className="mt-3 space-y-1">
-          {searchResults?.map((result) => (
+          {results.map((result, index) => (
             <button
               key={result.id}
-              className="w-full rounded-xl px-4 py-3 text-left transition-all duration-200 hover:bg-electric-violet/8"
+              className={`w-full rounded-xl px-4 py-3 text-left transition-all duration-200 ${
+                selectedIndex === index
+                  ? 'bg-electric-violet/10'
+                  : 'hover:bg-electric-violet/8'
+              }`}
               onClick={() => {
                 onClose()
                 onOpenCard(result.id)
               }}
+              onMouseEnter={() => setSelectedIndex(index)}
               type="button"
             >
               <span className="block text-sm font-semibold text-grape-vine">
@@ -64,7 +104,7 @@ export function BoardSearchDialog({
               </span>
             </button>
           ))}
-          {searchTerm.trim() && !searchResults?.length ? (
+          {searchTerm.trim() && !results.length ? (
             <p className="px-2 py-4 text-sm text-lavender-bloom">
               No cards match that search.
             </p>

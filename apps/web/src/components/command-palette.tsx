@@ -17,16 +17,7 @@ export function CommandPalette({
   onClose: () => void
 }) {
   const [query, setQuery] = useState('')
-
-  useEffect(() => {
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onEscape)
-    return () => window.removeEventListener('keydown', onEscape)
-  }, [onClose])
+  const [selectedIndex, setSelectedIndex] = useState(0)
 
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase()
@@ -38,6 +29,50 @@ export function CommandPalette({
       return terms.some((term) => term.toLowerCase().includes(value))
     })
   }, [commands, query])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectedIndex((current) =>
+          filtered.length ? (current + 1) % filtered.length : 0,
+        )
+        return
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectedIndex((current) =>
+          filtered.length
+            ? (current - 1 + filtered.length) % filtered.length
+            : 0,
+        )
+        return
+      }
+
+      if (event.key === 'Enter') {
+        const command = filtered[selectedIndex]
+        if (!command) {
+          return
+        }
+        event.preventDefault()
+        void command.run()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [filtered, onClose, selectedIndex])
+
+  useEffect(() => {
+    setSelectedIndex(0)
+  }, [query])
 
   return (
     <div
@@ -58,14 +93,19 @@ export function CommandPalette({
           />
         </div>
         <div className="mt-3 space-y-1">
-          {filtered.map((command) => (
+          {filtered.map((command, index) => (
             <button
               key={command.id}
-              className="w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-grape-vine transition-all duration-200 hover:bg-electric-violet/8 hover:text-electric-violet"
+              className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition-all duration-200 ${
+                selectedIndex === index
+                  ? 'bg-electric-violet/10 text-electric-violet'
+                  : 'text-grape-vine hover:bg-electric-violet/8 hover:text-electric-violet'
+              }`}
               onClick={() => {
                 void command.run()
                 onClose()
               }}
+              onMouseEnter={() => setSelectedIndex(index)}
               type="button"
             >
               {command.label}

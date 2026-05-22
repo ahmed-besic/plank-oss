@@ -16,7 +16,6 @@ import type { WorkspaceOverviewData } from '../../lib/types'
 import { useHydrated } from '../../lib/use-hydrated'
 import { WorkspaceShell } from '../../components/workspace-shell'
 
- 
 const createRoute = createFileRoute as any
 
 export const Route = createRoute('/w/$workspaceSlug/')({
@@ -58,14 +57,16 @@ function WorkspaceRoute() {
       return templates
     }
 
-    const boardTypes = (overviewQuery.data?.boardTypes ?? []).map((boardType) => ({
-      id: `boardType:${boardType.id}`,
-      kind: 'boardType' as const,
-      label: boardType.name,
-      description: 'Workspace board type',
-      defaultViewId: boardType.defaultViewIds[0] ?? 'core-kanban:board',
-      boardType,
-    }))
+    const boardTypes = (overviewQuery.data?.boardTypes ?? []).map(
+      (boardType) => ({
+        id: `boardType:${boardType.id}`,
+        kind: 'boardType' as const,
+        label: boardType.name,
+        description: 'Workspace board type',
+        defaultViewId: boardType.defaultViewIds[0] ?? 'core-kanban:board',
+        boardType,
+      }),
+    )
     return boardTypes
   }, [overviewQuery.data?.boardTypes, templatesQuery.data])
 
@@ -208,7 +209,8 @@ function WorkspaceLoaded({
               Create a board
             </h2>
             <p className="mt-1.5 text-sm text-text-secondary">
-              Name it, choose the first view, and add other views later inside the board.
+              Name it, choose the first view, and add other views later inside
+              the board.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -226,11 +228,23 @@ function WorkspaceLoaded({
             <Input
               className="w-full sm:w-72"
               onChange={(event) => onBoardNameChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Enter' &&
+                  boardName.trim() &&
+                  selectedBoardStyleId
+                ) {
+                  event.preventDefault()
+                  createBoard()
+                }
+              }}
               value={boardName}
             />
             <Button
               className="w-full sm:w-auto"
-              disabled={!boardName.trim() || !selectedBoardStyleId || isCreatingBoard}
+              disabled={
+                !boardName.trim() || !selectedBoardStyleId || isCreatingBoard
+              }
               onClick={createBoard}
             >
               <Plus className="mr-2 h-4 w-4" />

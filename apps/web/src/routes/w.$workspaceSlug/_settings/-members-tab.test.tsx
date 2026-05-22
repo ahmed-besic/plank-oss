@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MembersTab } from './-members-tab'
@@ -11,6 +17,25 @@ vi.mock('@convex-dev/auth/react', () => ({
     signOut: vi.fn(),
   }),
 }))
+
+const localStorageMock = (() => {
+  const store = new Map<string, string>()
+  return {
+    clear: () => store.clear(),
+    getItem: (key: string) => store.get(key) ?? null,
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, value)
+    },
+  }
+})()
+
+Object.defineProperty(window, 'localStorage', {
+  configurable: true,
+  value: localStorageMock,
+})
 
 afterEach(() => {
   cleanup()
@@ -141,7 +166,9 @@ describe('MembersTab', () => {
   })
 
   it('surfaces invite creation errors and limits admin management actions', async () => {
-    const mutation = vi.fn().mockRejectedValue(new Error('Invite creation failed'))
+    const mutation = vi
+      .fn()
+      .mockRejectedValue(new Error('Invite creation failed'))
 
     renderMembersTab(
       createData({
@@ -179,7 +206,9 @@ describe('MembersTab', () => {
       expect(screen.queryByText('Invite creation failed')).not.toBeNull()
     })
 
-    expect(screen.getByLabelText('Invite role').textContent.includes('Admin')).toBe(false)
+    expect(
+      screen.getByLabelText('Invite role').textContent.includes('Admin'),
+    ).toBe(false)
     expect(
       screen.queryByRole('button', {
         name: 'Demote to member for admin@example.com',
@@ -209,7 +238,11 @@ describe('MembersTab', () => {
       expiresAt: Date.now() + 1000,
     })
 
-    const firstData = createData({ mutation, pendingInvites: [], role: 'owner' })
+    const firstData = createData({
+      mutation,
+      pendingInvites: [],
+      role: 'owner',
+    })
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -273,10 +306,9 @@ describe('MembersTab', () => {
       }),
     )
 
-    expect(screen.getByRole('checkbox', { name: 'Hide emails' })).toHaveProperty(
-      'checked',
-      true,
-    )
+    expect(
+      screen.getByRole('checkbox', { name: 'Hide emails' }),
+    ).toHaveProperty('checked', true)
     expect(screen.queryByText('owner@example.com')).toBeNull()
     expect(screen.queryByText('hidden@example.com')).toBeNull()
     expect(screen.queryAllByText('Hidden').length).toBeGreaterThan(0)
@@ -285,6 +317,8 @@ describe('MembersTab', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Hide emails' }))
 
     expect(screen.queryByText('owner@example.com')).not.toBeNull()
-    expect(screen.queryAllByText('hidden@example.com').length).toBeGreaterThan(0)
+    expect(screen.queryAllByText('hidden@example.com').length).toBeGreaterThan(
+      0,
+    )
   })
 })

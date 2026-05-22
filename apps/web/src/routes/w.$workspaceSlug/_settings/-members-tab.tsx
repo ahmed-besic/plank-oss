@@ -62,7 +62,8 @@ function getAvatarColor(email: string) {
     ['#6366f1', '#4f46e5'],
   ]
   let hash = 0
-  for (let i = 0; i < email.length; i++) hash = email.charCodeAt(i) + ((hash << 5) - hash)
+  for (let i = 0; i < email.length; i++)
+    hash = email.charCodeAt(i) + ((hash << 5) - hash)
   const idx = Math.abs(hash) % colors.length
   return colors[idx]
 }
@@ -83,12 +84,16 @@ export function MembersTab({ data }: { data: SettingsData }) {
   const { signOut } = useAuthActions()
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<InviteRole>('member')
-  const [inviteLinksById, setInviteLinksById] = useState<Record<string, string>>({})
+  const [inviteLinksById, setInviteLinksById] = useState<
+    Record<string, string>
+  >({})
   const [showInvite, setShowInvite] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null)
   const [hideEmails, setHideEmails] = useState(true)
-  const viewerMember = overview?.members.find((member) => member.userId === overview.viewerUserId)
+  const viewerMember = overview?.members.find(
+    (member) => member.userId === overview.viewerUserId,
+  )
   const [profileName, setProfileName] = useState(viewerMember?.name ?? '')
 
   useEffect(() => {
@@ -133,14 +138,15 @@ export function MembersTab({ data }: { data: SettingsData }) {
   })
 
   const resendInvite = useMutation({
-    mutationFn: async (pendingInvite: WorkspaceOverviewData['pendingInvites'][number]) =>
-      ({
-        pendingInvite,
-        result: await convexClient.mutation(api.workspaces.resendInvite, {
-          workspaceSlug,
-          inviteId: pendingInvite.id as never,
-        }),
+    mutationFn: async (
+      pendingInvite: WorkspaceOverviewData['pendingInvites'][number],
+    ) => ({
+      pendingInvite,
+      result: await convexClient.mutation(api.workspaces.resendInvite, {
+        workspaceSlug,
+        inviteId: pendingInvite.id as never,
       }),
+    }),
     onSuccess: async ({ pendingInvite, result }) => {
       setInviteLinksById((current) => {
         const next = { ...current }
@@ -153,7 +159,9 @@ export function MembersTab({ data }: { data: SettingsData }) {
   })
 
   const revokeInvite = useMutation({
-    mutationFn: async (pendingInvite: WorkspaceOverviewData['pendingInvites'][number]) =>
+    mutationFn: async (
+      pendingInvite: WorkspaceOverviewData['pendingInvites'][number],
+    ) =>
       await convexClient.mutation(api.workspaces.revokeInvite, {
         workspaceSlug,
         inviteId: pendingInvite.id as never,
@@ -215,6 +223,13 @@ export function MembersTab({ data }: { data: SettingsData }) {
     e.preventDefault()
     if (inviteEmail.trim()) invite.mutate()
   }
+  const handleProfileSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!profileName.trim() || updateMyMemberProfile.isPending) {
+      return
+    }
+    updateMyMemberProfile.mutate()
+  }
 
   const handleCopyInviteLink = async (inviteId: string) => {
     const url = inviteLinksById[inviteId]
@@ -223,7 +238,11 @@ export function MembersTab({ data }: { data: SettingsData }) {
     }
     await navigator.clipboard.writeText(url)
     setCopiedInviteId(inviteId)
-    window.setTimeout(() => setCopiedInviteId((current) => (current === inviteId ? null : current)), 1200)
+    window.setTimeout(
+      () =>
+        setCopiedInviteId((current) => (current === inviteId ? null : current)),
+      1200,
+    )
   }
 
   const filteredMembers = useMemo(() => {
@@ -274,9 +293,13 @@ export function MembersTab({ data }: { data: SettingsData }) {
   const filteredCount = filteredMembers.length
 
   const canUpdateRole = (target: WorkspaceOverviewData['members'][number]) =>
-    viewerRole === 'owner' && target.role !== 'owner' && target.userId !== viewerUserId
+    viewerRole === 'owner' &&
+    target.role !== 'owner' &&
+    target.userId !== viewerUserId
 
-  const canRemoveMemberTarget = (target: WorkspaceOverviewData['members'][number]) => {
+  const canRemoveMemberTarget = (
+    target: WorkspaceOverviewData['members'][number],
+  ) => {
     if (target.role === 'owner' || target.userId === viewerUserId) {
       return false
     }
@@ -287,7 +310,8 @@ export function MembersTab({ data }: { data: SettingsData }) {
   }
 
   const canManageInviteTarget = (targetRole: InviteRole) =>
-    viewerRole === 'owner' || (viewerRole === 'admin' && targetRole === 'member')
+    viewerRole === 'owner' ||
+    (viewerRole === 'admin' && targetRole === 'member')
 
   return (
     <div className="members-tab">
@@ -370,7 +394,7 @@ export function MembersTab({ data }: { data: SettingsData }) {
 
       <section className="members-pending-section">
         <div className="members-section-header">Your profile</div>
-        <div className="members-profile-form">
+        <form className="members-profile-form" onSubmit={handleProfileSubmit}>
           <div className="members-profile-fields">
             <Input
               onChange={(e) => setProfileName(e.target.value)}
@@ -378,20 +402,22 @@ export function MembersTab({ data }: { data: SettingsData }) {
               value={profileName}
             />
             <Button
-              type="button"
+              type="submit"
               size="sm"
               disabled={!profileName.trim() || updateMyMemberProfile.isPending}
-              onClick={() => updateMyMemberProfile.mutate()}
             >
               Save name
             </Button>
           </div>
           {updateMyMemberProfile.isError ? (
             <p className="members-feedback members-feedback-error">
-              {getErrorMessage(updateMyMemberProfile.error, 'Your name could not be updated.')}
+              {getErrorMessage(
+                updateMyMemberProfile.error,
+                'Your name could not be updated.',
+              )}
             </p>
           ) : null}
-        </div>
+        </form>
       </section>
 
       {canManageMembers ? (
@@ -403,17 +429,21 @@ export function MembersTab({ data }: { data: SettingsData }) {
             <div className="members-pending-list">
               {filteredPendingInvites.map((pendingInvite) => {
                 const localLink = inviteLinksById[pendingInvite.id]
-                const isBusy =
-                  resendInvite.isPending || revokeInvite.isPending
-                const visibleInviteEmail = hideEmails ? 'Hidden recipient' : pendingInvite.email
+                const isBusy = resendInvite.isPending || revokeInvite.isPending
+                const visibleInviteEmail = hideEmails
+                  ? 'Hidden recipient'
+                  : pendingInvite.email
 
                 return (
                   <div key={pendingInvite.id} className="members-pending-card">
                     <div className="members-pending-main">
                       <div>
-                        <p className="members-pending-email">{visibleInviteEmail}</p>
+                        <p className="members-pending-email">
+                          {visibleInviteEmail}
+                        </p>
                         <p className="members-pending-meta">
-                          {pendingInvite.role} · expires {formatDateTime(pendingInvite.expiresAt)}
+                          {pendingInvite.role} · expires{' '}
+                          {formatDateTime(pendingInvite.expiresAt)}
                         </p>
                       </div>
                       <div className="members-pending-actions">
@@ -421,11 +451,15 @@ export function MembersTab({ data }: { data: SettingsData }) {
                           <Button
                             tone="ghost"
                             size="sm"
-                            onClick={() => void handleCopyInviteLink(pendingInvite.id)}
+                            onClick={() =>
+                              void handleCopyInviteLink(pendingInvite.id)
+                            }
                             type="button"
                           >
                             <Link2 size={14} style={{ marginRight: 6 }} />
-                            {copiedInviteId === pendingInvite.id ? 'Copied' : 'Copy link'}
+                            {copiedInviteId === pendingInvite.id
+                              ? 'Copied'
+                              : 'Copy link'}
                           </Button>
                         ) : null}
                         {canManageInviteTarget(pendingInvite.role) ? (
@@ -438,7 +472,10 @@ export function MembersTab({ data }: { data: SettingsData }) {
                               disabled={isBusy}
                               aria-label={`Regenerate link for ${pendingInvite.email}`}
                             >
-                              <RefreshCcw size={14} style={{ marginRight: 6 }} />
+                              <RefreshCcw
+                                size={14}
+                                style={{ marginRight: 6 }}
+                              />
                               Regenerate link
                             </Button>
                             <Button
@@ -458,8 +495,12 @@ export function MembersTab({ data }: { data: SettingsData }) {
                     </div>
                     {localLink ? (
                       <div className="members-invite-link">
-                        <span className="members-invite-link-label">Fresh invite link</span>
-                        <code className="members-invite-link-value">{localLink}</code>
+                        <span className="members-invite-link-label">
+                          Fresh invite link
+                        </span>
+                        <code className="members-invite-link-value">
+                          {localLink}
+                        </code>
                       </div>
                     ) : null}
                   </div>
@@ -471,12 +512,18 @@ export function MembersTab({ data }: { data: SettingsData }) {
           )}
           {resendInvite.isError ? (
             <p className="members-feedback members-feedback-error">
-              {getErrorMessage(resendInvite.error, 'Invite link could not be regenerated.')}
+              {getErrorMessage(
+                resendInvite.error,
+                'Invite link could not be regenerated.',
+              )}
             </p>
           ) : null}
           {revokeInvite.isError ? (
             <p className="members-feedback members-feedback-error">
-              {getErrorMessage(revokeInvite.error, 'Invite could not be revoked.')}
+              {getErrorMessage(
+                revokeInvite.error,
+                'Invite could not be revoked.',
+              )}
             </p>
           ) : null}
         </section>
@@ -501,22 +548,30 @@ export function MembersTab({ data }: { data: SettingsData }) {
             {members.map((member) => {
               const initials = getMemberInitials(member)
               const displayName = getMemberDisplayName(member)
-              const email = hideEmails ? 'Hidden' : getMemberSecondaryLabel(member)
+              const email = hideEmails
+                ? 'Hidden'
+                : getMemberSecondaryLabel(member)
               const [c1, c2] = getAvatarColor(member.email ?? member.userId)
               const roleActionLabel =
-                member.role === 'member' ? 'Promote to admin' : 'Demote to member'
+                member.role === 'member'
+                  ? 'Promote to admin'
+                  : 'Demote to member'
 
               return (
                 <div key={member.id} className="members-row">
                   <div className="members-col members-col-name">
                     <div
                       className="members-avatar"
-                      style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}
+                      style={{
+                        background: `linear-gradient(135deg, ${c1}, ${c2})`,
+                      }}
                     >
                       {initials}
                     </div>
                     <div className="members-name-block">
-                      <span className="members-display-name">{displayName}</span>
+                      <span className="members-display-name">
+                        {displayName}
+                      </span>
                     </div>
                   </div>
                   <div className="members-col members-col-email">{email}</div>
@@ -558,7 +613,8 @@ export function MembersTab({ data }: { data: SettingsData }) {
                         Remove
                       </Button>
                     ) : null}
-                    {!canUpdateRole(member) && !canRemoveMemberTarget(member) ? (
+                    {!canUpdateRole(member) &&
+                    !canRemoveMemberTarget(member) ? (
                       <span className="members-actions-placeholder">—</span>
                     ) : null}
                   </div>
@@ -571,7 +627,10 @@ export function MembersTab({ data }: { data: SettingsData }) {
 
       {updateMemberRole.isError ? (
         <p className="members-feedback members-feedback-error">
-          {getErrorMessage(updateMemberRole.error, 'Member role could not be updated.')}
+          {getErrorMessage(
+            updateMemberRole.error,
+            'Member role could not be updated.',
+          )}
         </p>
       ) : null}
       {removeMember.isError ? (

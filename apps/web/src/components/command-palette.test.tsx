@@ -25,4 +25,33 @@ describe('CommandPalette', () => {
 
     expect(run).toHaveBeenCalledTimes(1)
   })
+
+  it('runs the highlighted command with Enter', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+
+    render(
+      <CommandPalette
+        commands={[
+          {
+            id: 'first',
+            label: 'First command',
+            run: first,
+          },
+          {
+            id: 'second',
+            label: 'Second command',
+            run: second,
+          },
+        ]}
+        onClose={() => {}}
+      />,
+    )
+
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    fireEvent.keyDown(window, { key: 'Enter' })
+
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
 })

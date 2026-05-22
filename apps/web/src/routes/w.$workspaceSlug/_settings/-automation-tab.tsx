@@ -1,5 +1,12 @@
 import { useMutation } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Code2, Play, Trash2, Wand2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  Play,
+  Trash2,
+  Wand2,
+} from 'lucide-react'
 import type {
   BehaviorTargetType,
   SimpleBehaviorAction,
@@ -16,10 +23,7 @@ import type {
 } from '../../../lib/types'
 import type { SettingsData } from './-use-settings-data'
 
-function getTargetOptions(
-  targetType: BehaviorTargetType,
-  data: SettingsData,
-) {
+function getTargetOptions(targetType: BehaviorTargetType, data: SettingsData) {
   const { overview, boardTypes, cardTypes, tags } = data
   if (!overview) return []
   switch (targetType) {
@@ -36,7 +40,10 @@ function getTargetOptions(
   }
 }
 
-function getBindingTargetLabel(binding: BehaviorBindingData, data: SettingsData) {
+function getBindingTargetLabel(
+  binding: BehaviorBindingData,
+  data: SettingsData,
+) {
   const { overview, boardTypes, cardTypes, tags } = data
   if (!overview) return binding.targetId
   switch (binding.targetType) {
@@ -108,13 +115,15 @@ function describeSimpleAction(
 ) {
   switch (action.type) {
     case 'set_property': {
-      const property =
-        getPropertyOptions(data).find((item) => item.key === action.propertyKey)
+      const property = getPropertyOptions(data).find(
+        (item) => item.key === action.propertyKey,
+      )
       return `Set ${property?.label ?? action.propertyKey}`
     }
     case 'set_current_date': {
-      const property =
-        getPropertyOptions(data).find((item) => item.key === action.propertyKey)
+      const property = getPropertyOptions(data).find(
+        (item) => item.key === action.propertyKey,
+      )
       return `Set ${property?.label ?? action.propertyKey} to current date`
     }
     case 'add_tag':
@@ -145,7 +154,11 @@ function describeSimpleTrigger(config: SimpleBehaviorRuleConfig) {
   }
 }
 
-function parseSimplePropertyValue(type: string, rawValue: string, booleanValue: boolean) {
+function parseSimplePropertyValue(
+  type: string,
+  rawValue: string,
+  booleanValue: boolean,
+) {
   if (type === 'boolean') {
     return booleanValue
   }
@@ -189,7 +202,14 @@ function resolveRecipientPropertyTypeKeys({
 }
 
 export function AutomationTab({ data }: { data: SettingsData }) {
-  const { behaviorPacks, behaviorBindings, automationRuns, convexClient, invalidate, workspaceSlug } = data
+  const {
+    behaviorPacks,
+    behaviorBindings,
+    automationRuns,
+    convexClient,
+    invalidate,
+    workspaceSlug,
+  } = data
 
   const [packName, setPackName] = useState('')
   const [selectedPackId, setSelectedPackId] = useState('')
@@ -217,16 +237,19 @@ export function AutomationTab({ data }: { data: SettingsData }) {
   const [simpleBooleanValue, setSimpleBooleanValue] = useState(false)
   const [simpleTagKey, setSimpleTagKey] = useState('')
   const [simpleStatusKey, setSimpleStatusKey] = useState('')
-  const [simpleNotifyTargetMode, setSimpleNotifyTargetMode] =
-    useState<'teammate' | 'property'>('teammate')
-  const [simpleRecipientPropertyKey, setSimpleRecipientPropertyKey] = useState('')
+  const [simpleNotifyTargetMode, setSimpleNotifyTargetMode] = useState<
+    'teammate' | 'property'
+  >('teammate')
+  const [simpleRecipientPropertyKey, setSimpleRecipientPropertyKey] =
+    useState('')
   const [simpleRecipientUserId, setSimpleRecipientUserId] = useState('')
   const [simpleNotifyMessage, setSimpleNotifyMessage] = useState('')
   const [simpleDiagnostics, setSimpleDiagnostics] = useState<
     BehaviorPackData['compileDiagnostics']
   >([])
 
-  const selectedPack = behaviorPacks.find((p) => p.id === selectedPackId) ?? null
+  const selectedPack =
+    behaviorPacks.find((p) => p.id === selectedPackId) ?? null
   const simplePacks = behaviorPacks.filter(
     (pack) => pack.authoringMode === 'simple' && pack.simpleRuleConfig,
   )
@@ -269,23 +292,34 @@ export function AutomationTab({ data }: { data: SettingsData }) {
   )
 
   useEffect(() => {
-    if (!selectedPackId && behaviorPacks.length) setSelectedPackId(behaviorPacks[0]?.id ?? '')
+    if (!selectedPackId && behaviorPacks.length)
+      setSelectedPackId(behaviorPacks[0]?.id ?? '')
   }, [behaviorPacks, selectedPackId])
 
   useEffect(() => {
-    if (!selectedPack) { setPackSource(''); return }
+    if (!selectedPack) {
+      setPackSource('')
+      return
+    }
     setPackSource(selectedPack.source)
   }, [selectedPack?.id, selectedPack?.source])
 
   useEffect(() => {
-    if (selectedPack && !selectedPack.allowedTargetTypes.includes(bindTargetType)) {
+    if (
+      selectedPack &&
+      !selectedPack.allowedTargetTypes.includes(bindTargetType)
+    ) {
       setBindTargetType(selectedPack.allowedTargetTypes[0] ?? 'workspace')
     }
   }, [bindTargetType, selectedPack])
 
   useEffect(() => {
-    if (!targetOptions.length) { setBindTargetId(''); return }
-    if (!targetOptions.some((t) => t.id === bindTargetId)) setBindTargetId(targetOptions[0]?.id ?? '')
+    if (!targetOptions.length) {
+      setBindTargetId('')
+      return
+    }
+    if (!targetOptions.some((t) => t.id === bindTargetId))
+      setBindTargetId(targetOptions[0]?.id ?? '')
   }, [bindTargetId, targetOptions])
 
   useEffect(() => {
@@ -304,13 +338,24 @@ export function AutomationTab({ data }: { data: SettingsData }) {
       setSimpleRecipientPropertyKey('')
       return
     }
-    if (!propertyOptions.some((property) => property.key === simplePropertyKey)) {
+    if (
+      !propertyOptions.some((property) => property.key === simplePropertyKey)
+    ) {
       setSimplePropertyKey(propertyOptions[0]?.key ?? '')
     }
-    if (!userPropertyOptions.some((property) => property.key === simpleRecipientPropertyKey)) {
+    if (
+      !userPropertyOptions.some(
+        (property) => property.key === simpleRecipientPropertyKey,
+      )
+    ) {
       setSimpleRecipientPropertyKey(userPropertyOptions[0]?.key ?? '')
     }
-  }, [propertyOptions, simplePropertyKey, simpleRecipientPropertyKey, userPropertyOptions])
+  }, [
+    propertyOptions,
+    simplePropertyKey,
+    simpleRecipientPropertyKey,
+    userPropertyOptions,
+  ])
 
   useEffect(() => {
     if (simpleActionType !== 'set_current_date') {
@@ -320,7 +365,11 @@ export function AutomationTab({ data }: { data: SettingsData }) {
       setSimplePropertyKey('')
       return
     }
-    if (!datePropertyOptions.some((property) => property.key === simplePropertyKey)) {
+    if (
+      !datePropertyOptions.some(
+        (property) => property.key === simplePropertyKey,
+      )
+    ) {
       setSimplePropertyKey(datePropertyOptions[0]?.key ?? '')
     }
   }, [datePropertyOptions, simpleActionType, simplePropertyKey])
@@ -403,7 +452,10 @@ export function AutomationTab({ data }: { data: SettingsData }) {
     if (config.action.type === 'set_current_date') {
       setSimplePropertyKey(config.action.propertyKey)
     }
-    if (config.action.type === 'add_tag' || config.action.type === 'remove_tag') {
+    if (
+      config.action.type === 'add_tag' ||
+      config.action.type === 'remove_tag'
+    ) {
       setSimpleTagKey(config.action.tagKey)
     }
     if (config.action.type === 'move_status') {
@@ -422,13 +474,23 @@ export function AutomationTab({ data }: { data: SettingsData }) {
 
   const createPack = useMutation({
     mutationFn: async () =>
-      convexClient.mutation(api.behaviors.createPack, { workspaceSlug, name: packName, source: packSource }),
-    onSuccess: async (r) => { setPackName(''); setSelectedPackId(r.packId); await invalidate() },
+      convexClient.mutation(api.behaviors.createPack, {
+        workspaceSlug,
+        name: packName,
+        source: packSource,
+      }),
+    onSuccess: async (r) => {
+      setPackName('')
+      setSelectedPackId(r.packId)
+      await invalidate()
+    },
   })
   const saveSource = useMutation({
     mutationFn: async () =>
       convexClient.mutation(api.behaviors.updatePackSource, {
-        workspaceSlug, packId: selectedPackId as never, source: packSource,
+        workspaceSlug,
+        packId: selectedPackId as never,
+        source: packSource,
       }),
     onSuccess: async () => {
       await invalidate()
@@ -439,24 +501,35 @@ export function AutomationTab({ data }: { data: SettingsData }) {
   })
   const compile = useMutation({
     mutationFn: async (id: string) =>
-      convexClient.mutation(api.behaviors.compilePack, { workspaceSlug, packId: id as never }),
+      convexClient.mutation(api.behaviors.compilePack, {
+        workspaceSlug,
+        packId: id as never,
+      }),
     onSuccess: () => void invalidate(),
   })
   const activate = useMutation({
     mutationFn: async (id: string) =>
-      convexClient.mutation(api.behaviors.activatePack, { workspaceSlug, packId: id as never }),
+      convexClient.mutation(api.behaviors.activatePack, {
+        workspaceSlug,
+        packId: id as never,
+      }),
     onSuccess: () => void invalidate(),
   })
   const archive = useMutation({
     mutationFn: async (id: string) =>
-      convexClient.mutation(api.behaviors.archivePack, { workspaceSlug, packId: id as never }),
+      convexClient.mutation(api.behaviors.archivePack, {
+        workspaceSlug,
+        packId: id as never,
+      }),
     onSuccess: () => void invalidate(),
   })
   const bind = useMutation({
     mutationFn: async () =>
       convexClient.mutation(api.behaviors.bindPack, {
-        workspaceSlug, packId: selectedPackId as never,
-        targetType: bindTargetType, targetId: bindTargetId,
+        workspaceSlug,
+        packId: selectedPackId as never,
+        targetType: bindTargetType,
+        targetId: bindTargetId,
         priority: Number(bindPriority || 100),
       }),
     onSuccess: () => void invalidate(),
@@ -464,13 +537,18 @@ export function AutomationTab({ data }: { data: SettingsData }) {
   const toggleBind = useMutation({
     mutationFn: async (p: { bindingId: string; enabled: boolean }) =>
       convexClient.mutation(api.behaviors.setBindingEnabled, {
-        workspaceSlug, bindingId: p.bindingId as never, enabled: p.enabled,
+        workspaceSlug,
+        bindingId: p.bindingId as never,
+        enabled: p.enabled,
       }),
     onSuccess: () => void invalidate(),
   })
   const unbind = useMutation({
     mutationFn: async (id: string) =>
-      convexClient.mutation(api.behaviors.unbindPack, { workspaceSlug, bindingId: id as never }),
+      convexClient.mutation(api.behaviors.unbindPack, {
+        workspaceSlug,
+        bindingId: id as never,
+      }),
     onSuccess: () => void invalidate(),
   })
   const saveSimplePack = useMutation({
@@ -481,13 +559,19 @@ export function AutomationTab({ data }: { data: SettingsData }) {
         simpleNotifyTargetMode === 'property' &&
         !ensuredRecipientPropertyKey
       ) {
-        const typeKeys = [...new Set(resolveRecipientPropertyTypeKeys({
-          data,
-          targetId: simpleTargetId,
-          targetType: simpleTargetType,
-        }))]
+        const typeKeys = [
+          ...new Set(
+            resolveRecipientPropertyTypeKeys({
+              data,
+              targetId: simpleTargetId,
+              targetType: simpleTargetType,
+            }),
+          ),
+        ]
         if (!typeKeys.length) {
-          throw new Error('No card type is available for teammate notifications')
+          throw new Error(
+            'No card type is available for teammate notifications',
+          )
         }
 
         for (const typeKey of typeKeys) {
@@ -557,7 +641,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
       }
       return convexClient.mutation(api.behaviors.saveSimplePack, {
         workspaceSlug,
-        packId: editingSimplePackId ? (editingSimplePackId as never) : undefined,
+        packId: editingSimplePackId
+          ? (editingSimplePackId as never)
+          : undefined,
         config: {
           name: simpleName,
           trigger: {
@@ -603,11 +689,12 @@ export function AutomationTab({ data }: { data: SettingsData }) {
   const canSaveSimple =
     simpleName.trim().length > 0 &&
     simpleTargetId.length > 0 &&
-    (
-      (simpleActionType === 'set_property' &&
-        simplePropertyKey.length > 0 &&
-        (selectedProperty?.type === 'boolean' || simplePropertyValue.trim().length > 0)) ||
-      (simpleActionType === 'set_current_date' && simplePropertyKey.length > 0) ||
+    ((simpleActionType === 'set_property' &&
+      simplePropertyKey.length > 0 &&
+      (selectedProperty?.type === 'boolean' ||
+        simplePropertyValue.trim().length > 0)) ||
+      (simpleActionType === 'set_current_date' &&
+        simplePropertyKey.length > 0) ||
       ((simpleActionType === 'add_tag' || simpleActionType === 'remove_tag') &&
         simpleTagKey.length > 0) ||
       (simpleActionType === 'move_status' && simpleStatusKey.length > 0) ||
@@ -615,19 +702,23 @@ export function AutomationTab({ data }: { data: SettingsData }) {
         (simpleNotifyTargetMode === 'teammate'
           ? simpleRecipientUserId.length > 0
           : true) &&
-        simpleNotifyMessage.trim().length > 0)
-    )
+        simpleNotifyMessage.trim().length > 0))
   const visibleAutomationRuns = showAllRuns
     ? automationRuns.slice(0, 50)
     : automationRuns.slice(0, 6)
 
-  const [advancedSection, setAdvancedSection] = useState<'packs' | 'bindings' | 'runs'>('packs')
+  const [advancedSection, setAdvancedSection] = useState<
+    'packs' | 'bindings' | 'runs'
+  >('packs')
 
   return (
     <div className="automation-tab">
       <h2 className="automation-title">Automations</h2>
       <p className="automation-subtitle">
-        {simplePacks.length} simple rule{simplePacks.length !== 1 ? 's' : ''} · {behaviorBindings.length} binding{behaviorBindings.length !== 1 ? 's' : ''} · {automationRuns.length} run{automationRuns.length !== 1 ? 's' : ''}
+        {simplePacks.length} simple rule{simplePacks.length !== 1 ? 's' : ''} ·{' '}
+        {behaviorBindings.length} binding
+        {behaviorBindings.length !== 1 ? 's' : ''} · {automationRuns.length} run
+        {automationRuns.length !== 1 ? 's' : ''}
       </p>
 
       {/* Simple rules editor */}
@@ -637,7 +728,15 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           <h3 className="automation-section-title">Simple rules</h3>
         </div>
 
-        <div className="automation-rule-form">
+        <form
+          className="automation-rule-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (canSaveSimple && !saveSimplePack.isPending) {
+              saveSimplePack.mutate()
+            }
+          }}
+        >
           <div className="automation-form-row">
             <label className="automation-label">Rule name</label>
             <Input
@@ -652,7 +751,12 @@ export function AutomationTab({ data }: { data: SettingsData }) {
               <label className="automation-label">When</label>
               <select
                 className="settings-select"
-                onChange={(e) => setSimpleTrigger(e.target.value as SimpleBehaviorRuleConfig['trigger']['eventName'])}
+                onChange={(e) =>
+                  setSimpleTrigger(
+                    e.target
+                      .value as SimpleBehaviorRuleConfig['trigger']['eventName'],
+                  )
+                }
                 value={simpleTrigger}
               >
                 <option value="card.created">Card created</option>
@@ -664,7 +768,11 @@ export function AutomationTab({ data }: { data: SettingsData }) {
               <label className="automation-label">Action</label>
               <select
                 className="settings-select"
-                onChange={(e) => setSimpleActionType(e.target.value as SimpleBehaviorAction['type'])}
+                onChange={(e) =>
+                  setSimpleActionType(
+                    e.target.value as SimpleBehaviorAction['type'],
+                  )
+                }
                 value={simpleActionType}
               >
                 <option value="set_property">Set property</option>
@@ -696,7 +804,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                   value={simplePropertyKey}
                 >
                   {propertyOptions.map((property) => (
-                    <option key={property.key} value={property.key}>{property.label}</option>
+                    <option key={property.key} value={property.key}>
+                      {property.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -705,7 +815,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 {selectedProperty?.type === 'boolean' ? (
                   <select
                     className="settings-select"
-                    onChange={(e) => setSimpleBooleanValue(e.target.value === 'true')}
+                    onChange={(e) =>
+                      setSimpleBooleanValue(e.target.value === 'true')
+                    }
                     value={String(simpleBooleanValue)}
                   >
                     <option value="true">True</option>
@@ -714,10 +826,18 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 ) : (
                   <Input
                     onChange={(e) => setSimplePropertyValue(e.target.value)}
-                    placeholder={selectedProperty?.type === 'timestamp' ? '2026-05-15T09:00' : selectedProperty?.type === 'number' ? '5' : '"High"'}
-                    type={selectedProperty?.type === 'number' ? 'number' : 'text'}
-                value={simplePropertyValue}
-              />
+                    placeholder={
+                      selectedProperty?.type === 'timestamp'
+                        ? '2026-05-15T09:00'
+                        : selectedProperty?.type === 'number'
+                          ? '5'
+                          : '"High"'
+                    }
+                    type={
+                      selectedProperty?.type === 'number' ? 'number' : 'text'
+                    }
+                    value={simplePropertyValue}
+                  />
                 )}
               </div>
             </div>
@@ -732,13 +852,16 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 value={simplePropertyKey}
               >
                 {datePropertyOptions.map((property) => (
-                  <option key={property.key} value={property.key}>{property.label}</option>
+                  <option key={property.key} value={property.key}>
+                    {property.label}
+                  </option>
                 ))}
               </select>
             </div>
           ) : null}
 
-          {(simpleActionType === 'add_tag' || simpleActionType === 'remove_tag') ? (
+          {simpleActionType === 'add_tag' ||
+          simpleActionType === 'remove_tag' ? (
             <div className="automation-form-row">
               <label className="automation-label">Tag</label>
               <select
@@ -747,7 +870,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 value={simpleTagKey}
               >
                 {data.tags.map((tag) => (
-                  <option key={tag.key} value={tag.key}>{tag.name}</option>
+                  <option key={tag.key} value={tag.key}>
+                    {tag.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -762,7 +887,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 value={simpleStatusKey}
               >
                 {statusOptions.map((status) => (
-                  <option key={status.key} value={status.key}>{status.label}</option>
+                  <option key={status.key} value={status.key}>
+                    {status.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -790,13 +917,14 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 <Input
                   onChange={(e) => setSimpleNotifyMessage(e.target.value)}
                   placeholder="Card entered done"
-                value={simpleNotifyMessage}
-              />
+                  value={simpleNotifyMessage}
+                />
               </div>
             </div>
           ) : null}
 
-          {simpleActionType === 'notify' && simpleNotifyTargetMode === 'teammate' ? (
+          {simpleActionType === 'notify' &&
+          simpleNotifyTargetMode === 'teammate' ? (
             <div className="automation-form-row">
               <label className="automation-label">Teammate</label>
               <select
@@ -805,23 +933,30 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 value={simpleRecipientUserId}
               >
                 {memberOptions.map((member) => (
-                  <option key={member.id} value={member.id}>{member.label}</option>
+                  <option key={member.id} value={member.id}>
+                    {member.label}
+                  </option>
                 ))}
               </select>
             </div>
           ) : null}
 
-          {simpleActionType === 'notify' && simpleNotifyTargetMode === 'property' ? (
+          {simpleActionType === 'notify' &&
+          simpleNotifyTargetMode === 'property' ? (
             <div className="automation-form-row">
               <label className="automation-label">Teammate field</label>
               {userPropertyOptions.length ? (
                 <select
                   className="settings-select"
-                  onChange={(e) => setSimpleRecipientPropertyKey(e.target.value)}
+                  onChange={(e) =>
+                    setSimpleRecipientPropertyKey(e.target.value)
+                  }
                   value={simpleRecipientPropertyKey}
                 >
                   {userPropertyOptions.map((property) => (
-                    <option key={property.key} value={property.key}>{property.label}</option>
+                    <option key={property.key} value={property.key}>
+                      {property.label}
+                    </option>
                   ))}
                 </select>
               ) : (
@@ -839,7 +974,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
               <label className="automation-label">Apply to</label>
               <select
                 className="settings-select"
-                onChange={(e) => setSimpleTargetType(e.target.value as BehaviorTargetType)}
+                onChange={(e) =>
+                  setSimpleTargetType(e.target.value as BehaviorTargetType)
+                }
                 value={simpleTargetType}
               >
                 <option value="workspace">Workspace</option>
@@ -857,7 +994,9 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                 value={simpleTargetId}
               >
                 {simpleTargetOptions.map((target) => (
-                  <option key={target.id} value={target.id}>{target.label}</option>
+                  <option key={target.id} value={target.id}>
+                    {target.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -875,13 +1014,18 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           <div className="automation-form-actions">
             <Button
               disabled={!canSaveSimple || saveSimplePack.isPending}
-              onClick={() => saveSimplePack.mutate()}
               size="sm"
+              type="submit"
             >
               {editingSimplePackId ? 'Save rule' : 'Create rule'}
             </Button>
             {editingSimplePackId ? (
-              <Button size="sm" tone="ghost" onClick={resetSimpleForm}>
+              <Button
+                size="sm"
+                tone="ghost"
+                onClick={resetSimpleForm}
+                type="button"
+              >
                 New rule
               </Button>
             ) : null}
@@ -890,7 +1034,10 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           {simpleDiagnostics.length ? (
             <div className="automation-diagnostics">
               {simpleDiagnostics.map((diagnostic, index) => (
-                <div key={`simple-diagnostic-${index}`} className="diagnostic-card">
+                <div
+                  key={`simple-diagnostic-${index}`}
+                  className="diagnostic-card"
+                >
                   <p className="diagnostic-level">
                     {diagnostic.level}
                     {diagnostic.ruleName ? ` · ${diagnostic.ruleName}` : ''}
@@ -900,56 +1047,70 @@ export function AutomationTab({ data }: { data: SettingsData }) {
               ))}
             </div>
           ) : null}
-        </div>
+        </form>
 
         {/* Simple rules list */}
         <div className="automation-list">
-          {simplePacks.length ? simplePacks.map((pack) => {
-            const config = pack.simpleRuleConfig!
-            const binding = simpleBindingsByPackId.get(pack.id)
-            return (
-              <div
-                key={pack.id}
-                className={`automation-list-item${pack.id === editingSimplePackId ? ' active' : ''}`}
-              >
-                <div className="automation-list-item-main">
-                  <div>
-                    <p className="automation-list-item-name">{pack.name}</p>
-                    <p className="automation-list-item-detail">
-                      {describeSimpleTrigger(config)} · {describeSimpleAction(config.action, data)}
-                    </p>
-                    <p className="automation-list-item-meta">
-                      {config.targetType} · {getTargetOptions(config.targetType, data).find((target) => target.id === config.targetId)?.label ?? config.targetId}
-                    </p>
-                  </div>
-                  <div className="automation-list-item-actions">
-                    <button
-                      aria-checked={binding?.enabled ?? config.enabled}
-                      aria-label={`${(binding?.enabled ?? config.enabled) ? 'Disable' : 'Enable'} ${pack.name}`}
-                      className="automation-toggle"
-                      role="switch"
-                      disabled={toggleSimplePack.isPending}
-                      onClick={() => {
-                        toggleSimplePack.mutate(pack)
-                      }}
-                      type="button"
-                    >
-                      <span />
-                    </button>
-                    <Button size="sm" tone="ghost" onClick={() => loadSimplePackIntoForm(pack)}>
-                      Edit
-                    </Button>
-                    <Button size="sm" tone="ghost" onClick={() => {
-                      setShowAdvanced(true)
-                      setSelectedPackId(pack.id)
-                    }}>
-                      <Code2 size={14} />
-                    </Button>
+          {simplePacks.length ? (
+            simplePacks.map((pack) => {
+              const config = pack.simpleRuleConfig!
+              const binding = simpleBindingsByPackId.get(pack.id)
+              return (
+                <div
+                  key={pack.id}
+                  className={`automation-list-item${pack.id === editingSimplePackId ? ' active' : ''}`}
+                >
+                  <div className="automation-list-item-main">
+                    <div>
+                      <p className="automation-list-item-name">{pack.name}</p>
+                      <p className="automation-list-item-detail">
+                        {describeSimpleTrigger(config)} ·{' '}
+                        {describeSimpleAction(config.action, data)}
+                      </p>
+                      <p className="automation-list-item-meta">
+                        {config.targetType} ·{' '}
+                        {getTargetOptions(config.targetType, data).find(
+                          (target) => target.id === config.targetId,
+                        )?.label ?? config.targetId}
+                      </p>
+                    </div>
+                    <div className="automation-list-item-actions">
+                      <button
+                        aria-checked={binding?.enabled ?? config.enabled}
+                        aria-label={`${(binding?.enabled ?? config.enabled) ? 'Disable' : 'Enable'} ${pack.name}`}
+                        className="automation-toggle"
+                        role="switch"
+                        disabled={toggleSimplePack.isPending}
+                        onClick={() => {
+                          toggleSimplePack.mutate(pack)
+                        }}
+                        type="button"
+                      >
+                        <span />
+                      </button>
+                      <Button
+                        size="sm"
+                        tone="ghost"
+                        onClick={() => loadSimplePackIntoForm(pack)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        tone="ghost"
+                        onClick={() => {
+                          setShowAdvanced(true)
+                          setSelectedPackId(pack.id)
+                        }}
+                      >
+                        <Code2 size={14} />
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )
-          }) : (
+              )
+            })
+          ) : (
             <div className="automation-empty">No simple rules yet.</div>
           )}
         </div>
@@ -989,7 +1150,10 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           {advancedSection === 'packs' && (
             <div className="automation-advanced-panel">
               <form
-                onSubmit={(e) => { e.preventDefault(); if (packName.trim()) createPack.mutate() }}
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (packName.trim()) createPack.mutate()
+                }}
                 className="automation-inline-form"
               >
                 <Input
@@ -997,111 +1161,191 @@ export function AutomationTab({ data }: { data: SettingsData }) {
                   placeholder="New behavior pack…"
                   value={packName}
                 />
-                <Button type="submit" disabled={!packName.trim()} size="sm">Create</Button>
+                <Button type="submit" disabled={!packName.trim()} size="sm">
+                  Create
+                </Button>
               </form>
 
               <div className="automation-pack-list">
-                {behaviorPacks.length ? behaviorPacks.map((pack) => (
-                  <div
-                    key={pack.id}
-                    className={`automation-pack-item${pack.id === selectedPackId ? ' active' : ''}`}
-                  >
-                    <div className="automation-pack-item-head">
-                      <div>
-                        <p className="automation-pack-item-name">{pack.name}</p>
-                        <p className="automation-pack-item-meta">
-                          {pack.status}
-                          {pack.authoringMode ? ` · ${pack.authoringMode}` : ''}
-                          {pack.compileDiagnostics.length ? ` · ${pack.compileDiagnostics.length} diagnostic${pack.compileDiagnostics.length !== 1 ? 's' : ''}` : ''}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        tone={pack.id === selectedPackId ? 'primary' : 'ghost'}
-                        onClick={() => setSelectedPackId(pack.id)}
-                      >
-                        {pack.id === selectedPackId ? 'Selected' : 'Select'}
-                      </Button>
-                    </div>
-                    {pack.id === selectedPackId && (
-                      <div className="automation-pack-editor">
-                        <textarea
-                          className="settings-textarea"
-                          onChange={(e) => setPackSource(e.target.value)}
-                          placeholder={'rule Tag moved cards\nwhen card moved\nadd tag priority'}
-                          value={packSource}
-                          rows={6}
-                        />
-                        <div className="automation-pack-editor-actions">
-                          <Button size="sm" disabled={!selectedPack || packSource === selectedPack.source} onClick={() => saveSource.mutate()}>
-                            Save
-                          </Button>
-                          <Button size="sm" tone="ghost" disabled={!selectedPack} onClick={() => selectedPack && compile.mutate(selectedPack.id)}>
-                            Compile
-                          </Button>
-                          <Button size="sm" tone="ghost" disabled={!selectedPack || selectedPack.authoringMode === 'simple'} onClick={() => selectedPack && activate.mutate(selectedPack.id)}>
-                            Activate
-                          </Button>
-                          <Button size="sm" tone="ghost" disabled={pack.status === 'archived' || pack.authoringMode === 'simple'} onClick={() => archive.mutate(pack.id)}>
-                            Archive
-                          </Button>
+                {behaviorPacks.length ? (
+                  behaviorPacks.map((pack) => (
+                    <div
+                      key={pack.id}
+                      className={`automation-pack-item${pack.id === selectedPackId ? ' active' : ''}`}
+                    >
+                      <div className="automation-pack-item-head">
+                        <div>
+                          <p className="automation-pack-item-name">
+                            {pack.name}
+                          </p>
+                          <p className="automation-pack-item-meta">
+                            {pack.status}
+                            {pack.authoringMode
+                              ? ` · ${pack.authoringMode}`
+                              : ''}
+                            {pack.compileDiagnostics.length
+                              ? ` · ${pack.compileDiagnostics.length} diagnostic${pack.compileDiagnostics.length !== 1 ? 's' : ''}`
+                              : ''}
+                          </p>
                         </div>
-                        {selectedPack?.compileDiagnostics.length ? (
-                          <div className="automation-diagnostics">
-                            {selectedPack.compileDiagnostics.map((d, i) => (
-                              <div key={`${selectedPack.id}-${i}`} className="diagnostic-card">
-                                <p className="diagnostic-level">{d.level}{d.ruleName ? ` · ${d.ruleName}` : ''}</p>
-                                <p className="diagnostic-msg">{d.message}</p>
-                              </div>
-                            ))}
+                        <Button
+                          size="sm"
+                          tone={
+                            pack.id === selectedPackId ? 'primary' : 'ghost'
+                          }
+                          onClick={() => setSelectedPackId(pack.id)}
+                        >
+                          {pack.id === selectedPackId ? 'Selected' : 'Select'}
+                        </Button>
+                      </div>
+                      {pack.id === selectedPackId && (
+                        <div className="automation-pack-editor">
+                          <textarea
+                            className="settings-textarea"
+                            onChange={(e) => setPackSource(e.target.value)}
+                            placeholder={
+                              'rule Tag moved cards\nwhen card moved\nadd tag priority'
+                            }
+                            value={packSource}
+                            rows={6}
+                          />
+                          <div className="automation-pack-editor-actions">
+                            <Button
+                              size="sm"
+                              disabled={
+                                !selectedPack ||
+                                packSource === selectedPack.source
+                              }
+                              onClick={() => saveSource.mutate()}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              tone="ghost"
+                              disabled={!selectedPack}
+                              onClick={() =>
+                                selectedPack && compile.mutate(selectedPack.id)
+                              }
+                            >
+                              Compile
+                            </Button>
+                            <Button
+                              size="sm"
+                              tone="ghost"
+                              disabled={
+                                !selectedPack ||
+                                selectedPack.authoringMode === 'simple'
+                              }
+                              onClick={() =>
+                                selectedPack && activate.mutate(selectedPack.id)
+                              }
+                            >
+                              Activate
+                            </Button>
+                            <Button
+                              size="sm"
+                              tone="ghost"
+                              disabled={
+                                pack.status === 'archived' ||
+                                pack.authoringMode === 'simple'
+                              }
+                              onClick={() => archive.mutate(pack.id)}
+                            >
+                              Archive
+                            </Button>
                           </div>
-                        ) : null}
+                          {selectedPack?.compileDiagnostics.length ? (
+                            <div className="automation-diagnostics">
+                              {selectedPack.compileDiagnostics.map((d, i) => (
+                                <div
+                                  key={`${selectedPack.id}-${i}`}
+                                  className="diagnostic-card"
+                                >
+                                  <p className="diagnostic-level">
+                                    {d.level}
+                                    {d.ruleName ? ` · ${d.ruleName}` : ''}
+                                  </p>
+                                  <p className="diagnostic-msg">{d.message}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
 
-                        {/* Binding creation for selected pack */}
-                        <div className="automation-bind-form">
-                          <p className="automation-bind-form-title">Create binding</p>
-                          {selectedPack?.authoringMode === 'simple' ? (
-                            <p className="automation-bind-form-note">Simple packs manage a single binding in the simple editor.</p>
-                          ) : (
-                            <>
-                              <div className="automation-form-row automation-form-row-3">
-                                <select
-                                  className="settings-select"
-                                  value={bindTargetType}
-                                  onChange={(e) => setBindTargetType(e.target.value as BehaviorPackData['allowedTargetTypes'][number])}
+                          {/* Binding creation for selected pack */}
+                          <div className="automation-bind-form">
+                            <p className="automation-bind-form-title">
+                              Create binding
+                            </p>
+                            {selectedPack?.authoringMode === 'simple' ? (
+                              <p className="automation-bind-form-note">
+                                Simple packs manage a single binding in the
+                                simple editor.
+                              </p>
+                            ) : (
+                              <>
+                                <div className="automation-form-row automation-form-row-3">
+                                  <select
+                                    className="settings-select"
+                                    value={bindTargetType}
+                                    onChange={(e) =>
+                                      setBindTargetType(
+                                        e.target
+                                          .value as BehaviorPackData['allowedTargetTypes'][number],
+                                      )
+                                    }
+                                  >
+                                    {(
+                                      selectedPack?.allowedTargetTypes ?? [
+                                        'workspace',
+                                        'boardType',
+                                        'board',
+                                        'cardType',
+                                        'tag',
+                                      ]
+                                    ).map((t) => (
+                                      <option key={t} value={t}>
+                                        {t}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    className="settings-select"
+                                    value={bindTargetId}
+                                    onChange={(e) =>
+                                      setBindTargetId(e.target.value)
+                                    }
+                                  >
+                                    {targetOptions.map((t) => (
+                                      <option key={t.id} value={t.id}>
+                                        {t.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Input
+                                    onChange={(e) =>
+                                      setBindPriority(e.target.value)
+                                    }
+                                    placeholder="Priority"
+                                    type="number"
+                                    value={bindPriority}
+                                  />
+                                </div>
+                                <Button
+                                  size="sm"
+                                  disabled={!selectedPack || !bindTargetId}
+                                  onClick={() => bind.mutate()}
                                 >
-                                  {(selectedPack?.allowedTargetTypes ?? ['workspace','boardType','board','cardType','tag']).map((t) => (
-                                    <option key={t} value={t}>{t}</option>
-                                  ))}
-                                </select>
-                                <select
-                                  className="settings-select"
-                                  value={bindTargetId}
-                                  onChange={(e) => setBindTargetId(e.target.value)}
-                                >
-                                  {targetOptions.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                                </select>
-                                <Input
-                                  onChange={(e) => setBindPriority(e.target.value)}
-                                  placeholder="Priority"
-                                  type="number"
-                value={bindPriority}
-              />
-                              </div>
-                              <Button
-                                size="sm"
-                                disabled={!selectedPack || !bindTargetId}
-                                onClick={() => bind.mutate()}
-                              >
-                                Create binding
-                              </Button>
-                            </>
-                          )}
+                                  Create binding
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )) : (
+                      )}
+                    </div>
+                  ))
+                ) : (
                   <div className="automation-empty">No behavior packs yet.</div>
                 )}
               </div>
@@ -1111,43 +1355,54 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           {advancedSection === 'bindings' && (
             <div className="automation-advanced-panel">
               <div className="automation-binding-list">
-                {behaviorBindings.length ? behaviorBindings.map((b) => (
-                  <div key={b.id} className="automation-binding-row">
-                    <div className="automation-binding-main">
-                      <div>
-                        <p className="automation-binding-pack">{b.packName ?? 'Behavior pack'}</p>
-                        <p className="automation-binding-target">
-                          {b.targetType} · {getBindingTargetLabel(b, data) ?? b.targetId}
-                        </p>
+                {behaviorBindings.length ? (
+                  behaviorBindings.map((b) => (
+                    <div key={b.id} className="automation-binding-row">
+                      <div className="automation-binding-main">
+                        <div>
+                          <p className="automation-binding-pack">
+                            {b.packName ?? 'Behavior pack'}
+                          </p>
+                          <p className="automation-binding-target">
+                            {b.targetType} ·{' '}
+                            {getBindingTargetLabel(b, data) ?? b.targetId}
+                          </p>
+                        </div>
+                        <div className="automation-binding-actions">
+                          <button
+                            aria-checked={b.enabled}
+                            aria-label={`${b.enabled ? 'Disable' : 'Enable'} binding for ${b.packName ?? 'behavior pack'}`}
+                            className="automation-toggle"
+                            role="switch"
+                            disabled={b.packAuthoringMode === 'simple'}
+                            onClick={() =>
+                              toggleBind.mutate({
+                                bindingId: b.id,
+                                enabled: !b.enabled,
+                              })
+                            }
+                            type="button"
+                          >
+                            <span />
+                          </button>
+                          <button
+                            aria-label="Remove binding"
+                            className="automation-trash-btn"
+                            disabled={b.packAuthoringMode === 'simple'}
+                            onClick={() => unbind.mutate(b.id)}
+                            type="button"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="automation-binding-actions">
-                        <button
-                          aria-checked={b.enabled}
-                          aria-label={`${b.enabled ? 'Disable' : 'Enable'} binding for ${b.packName ?? 'behavior pack'}`}
-                          className="automation-toggle"
-                          role="switch"
-                          disabled={b.packAuthoringMode === 'simple'}
-                          onClick={() => toggleBind.mutate({ bindingId: b.id, enabled: !b.enabled })}
-                          type="button"
-                        >
-                          <span />
-                        </button>
-                        <button
-                          aria-label="Remove binding"
-                          className="automation-trash-btn"
-                          disabled={b.packAuthoringMode === 'simple'}
-                          onClick={() => unbind.mutate(b.id)}
-                          type="button"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
+                      <p className="automation-binding-meta">
+                        Priority {b.priority}
+                        {b.packAuthoringMode ? ` · ${b.packAuthoringMode}` : ''}
+                      </p>
                     </div>
-                    <p className="automation-binding-meta">
-                      Priority {b.priority}{b.packAuthoringMode ? ` · ${b.packAuthoringMode}` : ''}
-                    </p>
-                  </div>
-                )) : (
+                  ))
+                ) : (
                   <div className="automation-empty">No bindings yet.</div>
                 )}
               </div>
@@ -1157,41 +1412,74 @@ export function AutomationTab({ data }: { data: SettingsData }) {
           {advancedSection === 'runs' && (
             <div className="automation-advanced-panel">
               <div className="automation-run-list">
-                {visibleAutomationRuns.length ? visibleAutomationRuns.map((run) => (
-                  <div key={run._id ?? `${run.eventName}-${run.createdAt}`} className="automation-run-item">
-                    <div className="automation-run-head">
-                      <div className="automation-run-event">
-                        <Play size={12} />
-                        <span>{run.eventName}</span>
+                {visibleAutomationRuns.length ? (
+                  visibleAutomationRuns.map((run) => (
+                    <div
+                      key={run._id ?? `${run.eventName}-${run.createdAt}`}
+                      className="automation-run-item"
+                    >
+                      <div className="automation-run-head">
+                        <div className="automation-run-event">
+                          <Play size={12} />
+                          <span>{run.eventName}</span>
+                        </div>
+                        <span
+                          className={`automation-status-badge ${run.status}`}
+                        >
+                          {formatRunStatus(run)}
+                        </span>
                       </div>
-                      <span className={`automation-status-badge ${run.status}`}>{formatRunStatus(run)}</span>
+                      <p className="automation-run-stats">
+                        {run.actionsExecuted}/{run.actionsPlanned} actions ·{' '}
+                        {run.matchedRuleIds.length} rules
+                      </p>
+                      {(run.guardReason || run.error) && (
+                        <p className="automation-run-message">
+                          {run.guardReason ?? run.error}
+                        </p>
+                      )}
+                      {run.trace.length > 0 && (
+                        <div className="automation-run-trace">
+                          {run.trace.map((step, i) => (
+                            <div
+                              key={`${run._id ?? run.createdAt}-${i}`}
+                              className="automation-run-trace-step"
+                            >
+                              <span className="automation-run-trace-name">
+                                {step.ruleName}
+                              </span>
+                              <span
+                                className={`automation-status-badge ${step.status}`}
+                              >
+                                {step.status}
+                              </span>
+                              {step.detail && (
+                                <span className="automation-run-trace-detail">
+                                  {step.detail}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <span className="automation-run-time">
+                        {new Date(run.createdAt).toLocaleString()}
+                      </span>
                     </div>
-                    <p className="automation-run-stats">
-                      {run.actionsExecuted}/{run.actionsPlanned} actions · {run.matchedRuleIds.length} rules
-                    </p>
-                    {(run.guardReason || run.error) && (
-                      <p className="automation-run-message">{run.guardReason ?? run.error}</p>
-                    )}
-                    {run.trace.length > 0 && (
-                      <div className="automation-run-trace">
-                        {run.trace.map((step, i) => (
-                          <div key={`${run._id ?? run.createdAt}-${i}`} className="automation-run-trace-step">
-                            <span className="automation-run-trace-name">{step.ruleName}</span>
-                            <span className={`automation-status-badge ${step.status}`}>{step.status}</span>
-                            {step.detail && <span className="automation-run-trace-detail">{step.detail}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <span className="automation-run-time">{new Date(run.createdAt).toLocaleString()}</span>
+                  ))
+                ) : (
+                  <div className="automation-empty">
+                    No automation runs yet.
                   </div>
-                )) : (
-                  <div className="automation-empty">No automation runs yet.</div>
                 )}
               </div>
               {automationRuns.length > 6 ? (
                 <div className="automation-show-more">
-                  <Button size="sm" tone="ghost" onClick={() => setShowAllRuns((v) => !v)}>
+                  <Button
+                    size="sm"
+                    tone="ghost"
+                    onClick={() => setShowAllRuns((v) => !v)}
+                  >
                     {showAllRuns ? 'Show latest 6' : 'Show more'}
                   </Button>
                 </div>

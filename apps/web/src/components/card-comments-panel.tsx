@@ -44,7 +44,10 @@ function CommentEditor({
   initialMentions: MentionRange[]
   members: BoardPageData['members']
   submitLabel: string
-  onSubmit: (payload: { bodyText: string; mentions: MentionRange[] }) => Promise<void> | void
+  onSubmit: (payload: {
+    bodyText: string
+    mentions: MentionRange[]
+  }) => Promise<void> | void
   onCancel?: () => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -85,8 +88,15 @@ function CommentEditor({
       setActiveMentionIndex(0)
       return
     }
-    setActiveMentionIndex((current) => Math.min(current, memberOptions.length - 1))
-  }, [memberOptions.length, mentionDraft?.end, mentionDraft?.query, mentionDraft?.start])
+    setActiveMentionIndex((current) =>
+      Math.min(current, memberOptions.length - 1),
+    )
+  }, [
+    memberOptions.length,
+    mentionDraft?.end,
+    mentionDraft?.query,
+    mentionDraft?.start,
+  ])
 
   const handleTextChange = (nextText: string, nextSelection: number) => {
     setMentions((current) =>
@@ -156,12 +166,26 @@ function CommentEditor({
         }
         onClick={(event) => setSelection(event.currentTarget.selectionStart)}
         onKeyDown={(event) => {
+          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+            event.preventDefault()
+            void submit()
+            return
+          }
+
+          if (event.key === 'Escape' && onCancel) {
+            event.preventDefault()
+            onCancel()
+            return
+          }
+
           if (!mentionDraft || memberOptions.length === 0) {
             return
           }
           if (event.key === 'ArrowDown') {
             event.preventDefault()
-            setActiveMentionIndex((current) => (current + 1) % memberOptions.length)
+            setActiveMentionIndex(
+              (current) => (current + 1) % memberOptions.length,
+            )
             return
           }
           if (event.key === 'ArrowUp') {
@@ -197,7 +221,10 @@ function CommentEditor({
               type="button"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-electric-violet text-xs font-semibold text-white">
-                {getMemberInitials({ userId: member.userId, name: member.label })}
+                {getMemberInitials({
+                  userId: member.userId,
+                  name: member.label,
+                })}
               </span>
               <span className="truncate">{member.label}</span>
             </button>
@@ -205,7 +232,9 @@ function CommentEditor({
         </div>
       ) : null}
       <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="text-xs text-lavender-bloom">Mentions notify teammates.</div>
+        <div className="text-xs text-lavender-bloom">
+          Mentions notify teammates.
+        </div>
         <div className="flex items-center gap-2">
           {onCancel ? (
             <Button onClick={onCancel} size="sm" tone="ghost" type="button">
@@ -250,7 +279,9 @@ export function CardCommentsPanel({
 }) {
   const { convexClient, queryClient } = usePlankApp()
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
-  const [reactionPickerCommentId, setReactionPickerCommentId] = useState<string | null>(null)
+  const [reactionPickerCommentId, setReactionPickerCommentId] = useState<
+    string | null
+  >(null)
   const commentsOptions = convexQuery(api.comments.listForCard, {
     workspaceSlug,
     boardId: (cardId ? boardId : '') as never,
@@ -262,7 +293,10 @@ export function CardCommentsPanel({
   })
 
   const createComment = useMutation({
-    mutationFn: async (payload: { bodyText: string; mentions: MentionRange[] }) =>
+    mutationFn: async (payload: {
+      bodyText: string
+      mentions: MentionRange[]
+    }) =>
       convexClient.mutation(api.comments.create, {
         workspaceSlug,
         boardId: boardId as never,
@@ -271,7 +305,9 @@ export function CardCommentsPanel({
         mentions: payload.mentions,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: commentsOptions.queryKey,
+      })
     },
   })
   const updateComment = useMutation({
@@ -288,7 +324,9 @@ export function CardCommentsPanel({
       }),
     onSuccess: async () => {
       setEditingCommentId(null)
-      await queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: commentsOptions.queryKey,
+      })
     },
   })
   const deleteComment = useMutation({
@@ -299,11 +337,16 @@ export function CardCommentsPanel({
       }),
     onSuccess: async () => {
       setEditingCommentId(null)
-      await queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: commentsOptions.queryKey,
+      })
     },
   })
   const toggleReaction = useMutation({
-    mutationFn: async (payload: { commentId: string; emoji: CommentReactionKey }) =>
+    mutationFn: async (payload: {
+      commentId: string
+      emoji: CommentReactionKey
+    }) =>
       convexClient.mutation(api.comments.toggleReaction, {
         workspaceSlug,
         commentId: payload.commentId as never,
@@ -311,31 +354,35 @@ export function CardCommentsPanel({
       }),
     onMutate: async ({ commentId, emoji }) => {
       await queryClient.cancelQueries({ queryKey: commentsOptions.queryKey })
-      const previous = queryClient.getQueryData<CardCommentData[]>(commentsOptions.queryKey)
-      queryClient.setQueryData<CardCommentData[]>(commentsOptions.queryKey, (current) =>
-        (current ?? []).map((comment) => {
-          if (comment.id !== commentId) {
-            return comment
-          }
-          const nextViewerReactions = comment.viewerReactions.includes(emoji)
-            ? comment.viewerReactions.filter((entry) => entry !== emoji)
-            : [...comment.viewerReactions, emoji]
-          const currentCount = comment.reactionCounts[emoji] ?? 0
-          const nextCount = comment.viewerReactions.includes(emoji)
-            ? Math.max(0, currentCount - 1)
-            : currentCount + 1
-          const nextReactionCounts = { ...comment.reactionCounts }
-          if (nextCount === 0) {
-            delete nextReactionCounts[emoji]
-          } else {
-            nextReactionCounts[emoji] = nextCount
-          }
-          return {
-            ...comment,
-            viewerReactions: nextViewerReactions,
-            reactionCounts: nextReactionCounts,
-          }
-        }),
+      const previous = queryClient.getQueryData<CardCommentData[]>(
+        commentsOptions.queryKey,
+      )
+      queryClient.setQueryData<CardCommentData[]>(
+        commentsOptions.queryKey,
+        (current) =>
+          (current ?? []).map((comment) => {
+            if (comment.id !== commentId) {
+              return comment
+            }
+            const nextViewerReactions = comment.viewerReactions.includes(emoji)
+              ? comment.viewerReactions.filter((entry) => entry !== emoji)
+              : [...comment.viewerReactions, emoji]
+            const currentCount = comment.reactionCounts[emoji] ?? 0
+            const nextCount = comment.viewerReactions.includes(emoji)
+              ? Math.max(0, currentCount - 1)
+              : currentCount + 1
+            const nextReactionCounts = { ...comment.reactionCounts }
+            if (nextCount === 0) {
+              delete nextReactionCounts[emoji]
+            } else {
+              nextReactionCounts[emoji] = nextCount
+            }
+            return {
+              ...comment,
+              viewerReactions: nextViewerReactions,
+              reactionCounts: nextReactionCounts,
+            }
+          }),
       )
       return { previous }
     },
@@ -345,7 +392,9 @@ export function CardCommentsPanel({
       }
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: commentsOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: commentsOptions.queryKey,
+      })
     },
   })
 
@@ -431,14 +480,19 @@ export function CardCommentsPanel({
         {comments.length ? (
           <div className="space-y-0">
             {comments.map((comment) => {
-              const member = members.find((entry) => entry.userId === comment.authorUserId)
+              const member = members.find(
+                (entry) => entry.userId === comment.authorUserId,
+              )
               const canManage = viewerUserId === comment.authorUserId
               const isEditing = editingCommentId === comment.id
               const visibleReactions = (
-                Object.entries(REACTION_LABELS) as Array<[CommentReactionKey, string]>
+                Object.entries(REACTION_LABELS) as Array<
+                  [CommentReactionKey, string]
+                >
               ).filter(
                 ([emoji]) =>
-                  (comment.reactionCounts[emoji] ?? 0) > 0 || comment.viewerReactions.includes(emoji),
+                  (comment.reactionCounts[emoji] ?? 0) > 0 ||
+                  comment.viewerReactions.includes(emoji),
               )
 
               return (
@@ -447,23 +501,29 @@ export function CardCommentsPanel({
                   key={comment.id}
                   className={cn(
                     'group rounded-2xl bg-white/80 p-1 transition hover:bg-white',
-                    highlightedCommentId === comment.id && 'bg-electric-violet/5 ring-1 ring-electric-violet/30',
+                    highlightedCommentId === comment.id &&
+                      'bg-electric-violet/5 ring-1 ring-electric-violet/30',
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-electric-violet text-xs font-semibold text-white">
-                        {getMemberInitials(member ?? { userId: comment.authorUserId })}
+                        {getMemberInitials(
+                          member ?? { userId: comment.authorUserId },
+                        )}
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="text-sm font-semibold text-grape-vine">
-                            {member ? getMemberDisplayName(member) : comment.authorUserId}
+                            {member
+                              ? getMemberDisplayName(member)
+                              : comment.authorUserId}
                           </div>
                           {!isEditing ? (
                             <>
                               {visibleReactions.map(([emoji, label]) => {
-                                const active = comment.viewerReactions.includes(emoji)
+                                const active =
+                                  comment.viewerReactions.includes(emoji)
                                 const count = comment.reactionCounts[emoji] ?? 0
                                 return (
                                   <button
@@ -474,7 +534,12 @@ export function CardCommentsPanel({
                                         ? 'bg-electric-violet/10 text-electric-violet'
                                         : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 hover:text-zinc-800',
                                     )}
-                                    onClick={() => toggleReaction.mutate({ commentId: comment.id, emoji })}
+                                    onClick={() =>
+                                      toggleReaction.mutate({
+                                        commentId: comment.id,
+                                        emoji,
+                                      })
+                                    }
                                     type="button"
                                   >
                                     <span>{label}</span>
@@ -494,7 +559,9 @@ export function CardCommentsPanel({
                                   className="rounded-full px-1.5 py-0.5 text-sm font-medium text-lavender-bloom transition hover:bg-zinc-100 hover:text-zinc-700"
                                   onClick={() =>
                                     setReactionPickerCommentId((current) =>
-                                      current === comment.id ? null : comment.id,
+                                      current === comment.id
+                                        ? null
+                                        : comment.id,
                                     )
                                   }
                                   type="button"
@@ -512,7 +579,10 @@ export function CardCommentsPanel({
                                         key={emoji}
                                         className="rounded-full px-2 py-1 text-sm transition hover:bg-zinc-100"
                                         onClick={() => {
-                                          toggleReaction.mutate({ commentId: comment.id, emoji })
+                                          toggleReaction.mutate({
+                                            commentId: comment.id,
+                                            emoji,
+                                          })
                                           setReactionPickerCommentId(null)
                                         }}
                                         type="button"

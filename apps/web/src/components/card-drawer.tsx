@@ -40,11 +40,10 @@ import {
 import { getMemberDisplayName } from '../lib/member-display'
 import { clearCardDraft } from './card-drawer-draft'
 import { CardDrawerPluginSlots } from './card-drawer-plugin-slots'
-import {
-  PendingDraftModal,
-} from './card-drawer-modals'
+import { PendingDraftModal } from './card-drawer-modals'
 import { renderTypedPropertyInput } from './card-drawer-property-input'
 import type { CardDrawerProps } from './card-drawer-types'
+import { useKeyboardShortcuts } from '../lib/keyboard-shortcuts'
 import { useCardDrawerLayout } from './use-card-drawer-layout'
 import { useCardDrawerState } from './use-card-drawer-state'
 
@@ -70,7 +69,13 @@ function formatDueDateValue(value: unknown) {
   }).format(new Date(value))
 }
 
-type MetadataPopoverKey = 'status' | 'tags' | 'dueDate' | 'relations' | 'addProperty' | null
+type MetadataPopoverKey =
+  | 'status'
+  | 'tags'
+  | 'dueDate'
+  | 'relations'
+  | 'addProperty'
+  | null
 
 function getPropertyIcon(type: string) {
   switch (type) {
@@ -232,7 +237,9 @@ function GenericCardDrawer({
   const [editingTagName, setEditingTagName] = useState('')
   const [tagColorPickerId, setTagColorPickerId] = useState<string | null>(null)
   const tagColorPickerRef = useRef<HTMLDivElement>(null)
-  const tagColorTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+  const tagColorTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>(
+    {},
+  )
   const {
     addRelation,
     blockNoteEditor,
@@ -310,11 +317,14 @@ function GenericCardDrawer({
     () =>
       selectedTagIds
         .map((tagId) => tagDefinitions.find((tag) => tag.id === tagId))
-        .filter((tag): tag is NonNullable<(typeof tagDefinitions)[number]> => Boolean(tag)),
+        .filter((tag): tag is NonNullable<(typeof tagDefinitions)[number]> =>
+          Boolean(tag),
+        ),
     [selectedTagIds, tagDefinitions],
   )
   const tagColorPickerRect = tagColorPickerId
-    ? tagColorTriggerRefs.current[tagColorPickerId]?.getBoundingClientRect() ?? null
+    ? (tagColorTriggerRefs.current[tagColorPickerId]?.getBoundingClientRect() ??
+      null)
     : null
   const handleCreateTag = () => {
     const name = newTagName.trim()
@@ -365,7 +375,9 @@ function GenericCardDrawer({
       }
       if (
         tagColorPickerId &&
-        tagColorTriggerRefs.current[tagColorPickerId]?.contains(event.target as Node)
+        tagColorTriggerRefs.current[tagColorPickerId]?.contains(
+          event.target as Node,
+        )
       ) {
         return
       }
@@ -451,6 +463,157 @@ function GenericCardDrawer({
     [visiblePropertyDefinitions],
   )
   const commentPanelWidth = 400
+  const submitNewProperty = useCallback(() => {
+    if (!newPropertyName.trim() || !cardType) {
+      return
+    }
+    const options =
+      newPropertyType === 'select'
+        ? newSelectOptions
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+            .map((label) => ({
+              label,
+              value: label
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, ''),
+            }))
+        : []
+    void onAddProperty(
+      newPropertyName,
+      newPropertyType,
+      newPropertyType === 'user'
+        ? { allowMultiple: true }
+        : options.length
+          ? { options }
+          : {},
+      cardType.id,
+    ).then(() => {
+      resetPropertyComposer()
+      setActivePopover(null)
+    })
+  }, [
+    cardType,
+    newPropertyName,
+    newPropertyType,
+    newSelectOptions,
+    onAddProperty,
+    resetPropertyComposer,
+  ])
+  const addFirstRelationSearchResult = useCallback(() => {
+    const firstResult = workspaceRelationSearchResults[0]
+    if (!firstResult || addRelation.isPending) {
+      return
+    }
+    const isLinked = outgoingRelations.some(
+      (relation) =>
+        relation.type === relationType && relation.cardId === firstResult.id,
+    )
+    if (isLinked) {
+      return
+    }
+    addRelation.mutate({
+      type: relationType,
+      targetCardId: firstResult.id,
+    })
+  }, [
+    addRelation,
+    outgoingRelations,
+    relationType,
+    workspaceRelationSearchResults,
+  ])
+
+  useKeyboardShortcuts(
+    useMemo(
+      () => [
+        {
+          id: 'card.save-close',
+          keys: ['mod+enter'],
+          description: 'Save and close card',
+          scope: 'card' as const,
+          allowInInputs: true,
+          disabled: Boolean(pendingDraft),
+          run: () => void closeAndSave(),
+        },
+        {
+          id: 'card.title',
+          keys: ['t'],
+          description: 'Focus title',
+          scope: 'card' as const,
+          disabled: Boolean(activePopover || pendingDraft),
+          run: () => titleTextareaRef.current?.focus(),
+        },
+        {
+          id: 'card.description',
+          keys: ['d'],
+          description: 'Focus description',
+          scope: 'card' as const,
+          disabled: Boolean(activePopover || pendingDraft),
+          run: () => blockNoteEditor.focus(),
+        },
+        {
+          id: 'card.status',
+          keys: ['s'],
+          description: 'Open status',
+          scope: 'card' as const,
+          disabled: Boolean(pendingDraft),
+          run: () => setActivePopover('status'),
+        },
+        {
+          id: 'card.tags',
+          keys: ['g'],
+          description: 'Open tags',
+          scope: 'card' as const,
+          disabled: Boolean(pendingDraft),
+          run: () => setActivePopover('tags'),
+        },
+        {
+          id: 'card.relations',
+          keys: ['l'],
+          description: 'Open relations',
+          scope: 'card' as const,
+          disabled: Boolean(pendingDraft),
+          run: () => setActivePopover('relations'),
+        },
+        {
+          id: 'card.add-property',
+          keys: ['p'],
+          description: 'Add property',
+          scope: 'card' as const,
+          disabled: Boolean(pendingDraft),
+          run: () => setActivePopover('addProperty'),
+        },
+        {
+          id: 'card.comments',
+          keys: ['mod+shift+c'],
+          description: 'Toggle comments',
+          scope: 'card' as const,
+          allowInInputs: true,
+          disabled: !persistedCardId,
+          run: () => onToggleComments?.(),
+        },
+        {
+          id: 'card.upload-image',
+          keys: ['u'],
+          description: 'Upload image',
+          scope: 'card' as const,
+          disabled: Boolean(activePopover || pendingDraft),
+          run: () => fileInputRef.current?.click(),
+        },
+      ],
+      [
+        activePopover,
+        blockNoteEditor,
+        closeAndSave,
+        fileInputRef,
+        onToggleComments,
+        pendingDraft,
+        persistedCardId,
+      ],
+    ),
+  )
 
   return (
     <>
@@ -644,7 +807,9 @@ function GenericCardDrawer({
                               type="button"
                             >
                               <span>{status.label}</span>
-                              {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                              {selected ? (
+                                <Check className="h-4 w-4 shrink-0" />
+                              ) : null}
                             </button>
                           )
                         })}
@@ -693,118 +858,125 @@ function GenericCardDrawer({
                     {activePopover === 'tags' ? (
                       <div className="absolute left-0 top-full z-20 mt-2 w-64 rounded-xl border border-border-subtle bg-cloud-white p-1.5 shadow-2xl">
                         <div className="max-h-60 space-y-0.5 overflow-y-auto pr-0.5">
-                        {tagDefinitions.length ? (
-                          tagDefinitions.map((tag) => {
-                            const selected = selectedTagIds.includes(tag.id)
-                            const isRenaming = editingTagId === tag.id
-                            return (
-                              <div
-                                key={tag.id}
-                                className={`group relative flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
-                                  selected
-                                    ? 'bg-surface-sunken/60 text-text-primary'
-                                    : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'
-                                }`}
-                                onClick={() => {
-                                  if (!isRenaming) {
-                                    toggleTag(tag.id)
-                                    setActivePopover(null)
-                                  }
-                                }}
-                              >
-                                <div className="relative shrink-0">
-                                  <button
-                                    aria-label={`Change ${tag.name} color`}
-                                    className="flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-cloud-white"
-                                    ref={(element) => {
-                                      tagColorTriggerRefs.current[tag.id] = element
-                                    }}
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      setTagColorPickerId(
-                                        tagColorPickerId === tag.id ? null : tag.id,
-                                      )
-                                    }}
-                                    type="button"
-                                  >
-                                    <span
-                                      className="h-3 w-3 rounded-full"
-                                      style={getTagDotStyle(tag.color)}
-                                    />
-                                  </button>
-                                </div>
-
-                                <div className="min-w-0 flex-1">
-                                  {isRenaming ? (
-                                    <input
-                                      autoFocus
-                                      className="h-7 w-full rounded-lg border border-border-subtle bg-surface-sunken px-2 py-0.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-border-strong"
-                                      onBlur={() => finishRenameTag(tag.id)}
-                                      onChange={(event) =>
-                                        setEditingTagName(event.target.value)
-                                      }
-                                      onClick={(event) => event.stopPropagation()}
-                                      onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
-                                          finishRenameTag(tag.id)
-                                        } else if (event.key === 'Escape') {
-                                          setEditingTagId(null)
-                                        }
-                                      }}
-                                      value={editingTagName}
-                                    />
-                                  ) : (
-                                    <span
-                                      className="tag-chip max-w-[120px] truncate text-xs font-medium"
-                                      style={getTagChipStyle(tag.color, { selected })}
-                                    >
-                                      {tag.name}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {!isRenaming ? (
-                                  <button
-                                    aria-label={`Rename ${tag.name}`}
-                                    className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 transition hover:bg-cloud-white hover:text-text-primary group-hover:opacity-100"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      setEditingTagId(tag.id)
-                                      setEditingTagName(tag.name)
-                                      setTagColorPickerId(null)
-                                    }}
-                                    type="button"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                ) : null}
-
-                                <button
-                                  aria-label={`Delete ${tag.name}`}
-                                  className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 transition hover:bg-cloud-white hover:text-red-400 group-hover:opacity-100"
-                                  disabled={deleteTag.isPending}
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    setEditingTagId(null)
-                                    setTagColorPickerId(null)
-                                    deleteTag.mutate(tag.id)
+                          {tagDefinitions.length ? (
+                            tagDefinitions.map((tag) => {
+                              const selected = selectedTagIds.includes(tag.id)
+                              const isRenaming = editingTagId === tag.id
+                              return (
+                                <div
+                                  key={tag.id}
+                                  className={`group relative flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition ${
+                                    selected
+                                      ? 'bg-surface-sunken/60 text-text-primary'
+                                      : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary'
+                                  }`}
+                                  onClick={() => {
+                                    if (!isRenaming) {
+                                      toggleTag(tag.id)
+                                      setActivePopover(null)
+                                    }
                                   }}
-                                  type="button"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                  <div className="relative shrink-0">
+                                    <button
+                                      aria-label={`Change ${tag.name} color`}
+                                      className="flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-cloud-white"
+                                      ref={(element) => {
+                                        tagColorTriggerRefs.current[tag.id] =
+                                          element
+                                      }}
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        setTagColorPickerId(
+                                          tagColorPickerId === tag.id
+                                            ? null
+                                            : tag.id,
+                                        )
+                                      }}
+                                      type="button"
+                                    >
+                                      <span
+                                        className="h-3 w-3 rounded-full"
+                                        style={getTagDotStyle(tag.color)}
+                                      />
+                                    </button>
+                                  </div>
 
-                                {selected ? (
-                                  <Check className="h-4 w-4 shrink-0 text-text-primary" />
-                                ) : null}
-                              </div>
-                            )
-                          })
-                        ) : (
-                          <div className="px-3 py-2 text-sm text-zinc-400">
-                            No tags available
-                          </div>
-                        )}
+                                  <div className="min-w-0 flex-1">
+                                    {isRenaming ? (
+                                      <input
+                                        autoFocus
+                                        className="h-7 w-full rounded-lg border border-border-subtle bg-surface-sunken px-2 py-0.5 text-xs text-text-primary outline-none focus:ring-1 focus:ring-border-strong"
+                                        onBlur={() => finishRenameTag(tag.id)}
+                                        onChange={(event) =>
+                                          setEditingTagName(event.target.value)
+                                        }
+                                        onClick={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter') {
+                                            finishRenameTag(tag.id)
+                                          } else if (event.key === 'Escape') {
+                                            setEditingTagId(null)
+                                          }
+                                        }}
+                                        value={editingTagName}
+                                      />
+                                    ) : (
+                                      <span
+                                        className="tag-chip max-w-[120px] truncate text-xs font-medium"
+                                        style={getTagChipStyle(tag.color, {
+                                          selected,
+                                        })}
+                                      >
+                                        {tag.name}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {!isRenaming ? (
+                                    <button
+                                      aria-label={`Rename ${tag.name}`}
+                                      className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 transition hover:bg-cloud-white hover:text-text-primary group-hover:opacity-100"
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        setEditingTagId(tag.id)
+                                        setEditingTagName(tag.name)
+                                        setTagColorPickerId(null)
+                                      }}
+                                      type="button"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null}
+
+                                  <button
+                                    aria-label={`Delete ${tag.name}`}
+                                    className="shrink-0 rounded-md p-1 text-text-tertiary opacity-0 transition hover:bg-cloud-white hover:text-red-400 group-hover:opacity-100"
+                                    disabled={deleteTag.isPending}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setEditingTagId(null)
+                                      setTagColorPickerId(null)
+                                      deleteTag.mutate(tag.id)
+                                    }}
+                                    type="button"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+
+                                  {selected ? (
+                                    <Check className="h-4 w-4 shrink-0 text-text-primary" />
+                                  ) : null}
+                                </div>
+                              )
+                            })
+                          ) : (
+                            <div className="px-3 py-2 text-sm text-zinc-400">
+                              No tags available
+                            </div>
+                          )}
                         </div>
                         <div className="my-1 border-t border-border-subtle" />
                         <div className="flex items-center gap-2 rounded-lg px-2 py-1.5">
@@ -830,7 +1002,9 @@ function GenericCardDrawer({
                           </div>
                           <input
                             className="h-8 min-w-0 flex-1 rounded-lg border border-border-subtle bg-surface-sunken px-2.5 py-1 text-xs text-text-primary outline-none transition focus:ring-1 focus:ring-border-strong placeholder:text-text-placeholder"
-                            onChange={(event) => setNewTagName(event.target.value)}
+                            onChange={(event) =>
+                              setNewTagName(event.target.value)
+                            }
                             onKeyDown={(event) => {
                               if (event.key === 'Enter') {
                                 handleCreateTag()
@@ -870,7 +1044,13 @@ function GenericCardDrawer({
                             {dueDateDefinition.name}
                           </span>
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-50 hover:bg-zinc-100 px-2.5 py-1 text-sm text-zinc-700 transition">
-                            <span className={dueDateValue ? 'text-zinc-700 font-medium' : 'text-zinc-400'}>
+                            <span
+                              className={
+                                dueDateValue
+                                  ? 'text-zinc-700 font-medium'
+                                  : 'text-zinc-400'
+                              }
+                            >
                               {formatDueDateValue(dueDateValue)}
                             </span>
                             <ChevronDown
@@ -935,7 +1115,13 @@ function GenericCardDrawer({
                           members,
                           pluginPropertyTypeMap,
                           value: propertyValues[priorityDefinition.key],
-                          onUpdateOptions: (options: Array<{ color?: string; label: string; value: string }>) => {
+                          onUpdateOptions: (
+                            options: Array<{
+                              color?: string
+                              label: string
+                              value: string
+                            }>,
+                          ) => {
                             void onUpdatePropertyOptions(
                               priorityDefinition.key,
                               options,
@@ -979,7 +1165,8 @@ function GenericCardDrawer({
                       </span>
                       <span className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-50 hover:bg-zinc-100 px-2.5 py-1 text-sm text-zinc-700 transition">
                         <span className="font-medium text-zinc-700">
-                          {outgoingRelations.length + incomingRelations.length} linked
+                          {outgoingRelations.length + incomingRelations.length}{' '}
+                          linked
                         </span>
                         <ChevronDown
                           className={`h-3.5 w-3.5 shrink-0 text-zinc-400 transition ${
@@ -995,7 +1182,8 @@ function GenericCardDrawer({
                             Linked Cards
                           </h4>
                           <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
-                            {outgoingRelations.length || incomingRelations.length ? (
+                            {outgoingRelations.length ||
+                            incomingRelations.length ? (
                               <>
                                 {outgoingRelations.map((relation) => (
                                   <div
@@ -1017,7 +1205,10 @@ function GenericCardDrawer({
                                       <div className="flex shrink-0 gap-1">
                                         <Button
                                           onClick={() => {
-                                            onOpenCard(relation.cardId, relation.boardId)
+                                            onOpenCard(
+                                              relation.cardId,
+                                              relation.boardId,
+                                            )
                                             setActivePopover(null)
                                           }}
                                           size="sm"
@@ -1061,7 +1252,10 @@ function GenericCardDrawer({
                                       </div>
                                       <Button
                                         onClick={() => {
-                                          onOpenCard(relation.cardId, relation.boardId)
+                                          onOpenCard(
+                                            relation.cardId,
+                                            relation.boardId,
+                                          )
                                           setActivePopover(null)
                                         }}
                                         size="sm"
@@ -1074,7 +1268,9 @@ function GenericCardDrawer({
                                 ))}
                               </>
                             ) : (
-                              <p className="text-xs text-zinc-400 italic">No relations yet.</p>
+                              <p className="text-xs text-zinc-400 italic">
+                                No relations yet.
+                              </p>
                             )}
                           </div>
 
@@ -1103,6 +1299,12 @@ function GenericCardDrawer({
                                   onChange={(event) =>
                                     setRelationSearchTerm(event.target.value)
                                   }
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      addFirstRelationSearchResult()
+                                    }
+                                  }}
                                   placeholder="Search cards..."
                                   value={relationSearchTerm}
                                 />
@@ -1112,41 +1314,45 @@ function GenericCardDrawer({
                             {relationSearchTerm.trim().length > 0 ? (
                               <div className="mt-2 space-y-1.5 max-h-[120px] overflow-y-auto pr-1">
                                 {workspaceRelationSearchResults.length ? (
-                                  workspaceRelationSearchResults.map((result) => {
-                                    const isLinked = outgoingRelations.some(
-                                      (relation) =>
-                                        relation.type === relationType &&
-                                        relation.cardId === result.id,
-                                    )
-                                    return (
-                                      <div
-                                        key={result.id}
-                                        className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white p-1.5"
-                                      >
-                                        <div className="min-w-0">
-                                          <p className="truncate text-[11px] font-medium text-zinc-800">
-                                            {result.title}
-                                          </p>
-                                          <p className="text-[10px] text-zinc-500">
-                                            {result.boardName}
-                                          </p>
-                                        </div>
-                                        <Button
-                                          disabled={isLinked || addRelation.isPending}
-                                          onClick={() =>
-                                            addRelation.mutate({
-                                              type: relationType,
-                                              targetCardId: result.id,
-                                            })
-                                          }
-                                          size="sm"
-                                          tone="ghost"
+                                  workspaceRelationSearchResults.map(
+                                    (result) => {
+                                      const isLinked = outgoingRelations.some(
+                                        (relation) =>
+                                          relation.type === relationType &&
+                                          relation.cardId === result.id,
+                                      )
+                                      return (
+                                        <div
+                                          key={result.id}
+                                          className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white p-1.5"
                                         >
-                                          {isLinked ? 'Linked' : 'Add'}
-                                        </Button>
-                                      </div>
-                                    )
-                                  })
+                                          <div className="min-w-0">
+                                            <p className="truncate text-[11px] font-medium text-zinc-800">
+                                              {result.title}
+                                            </p>
+                                            <p className="text-[10px] text-zinc-500">
+                                              {result.boardName}
+                                            </p>
+                                          </div>
+                                          <Button
+                                            disabled={
+                                              isLinked || addRelation.isPending
+                                            }
+                                            onClick={() =>
+                                              addRelation.mutate({
+                                                type: relationType,
+                                                targetCardId: result.id,
+                                              })
+                                            }
+                                            size="sm"
+                                            tone="ghost"
+                                          >
+                                            {isLinked ? 'Linked' : 'Add'}
+                                          </Button>
+                                        </div>
+                                      )
+                                    },
+                                  )
                                 ) : (
                                   <p className="text-xs text-zinc-400">
                                     No cards match that search.
@@ -1173,14 +1379,18 @@ function GenericCardDrawer({
 
                   {/* Row 3+: Other dynamic properties */}
                   {filteredCustomPropertyDefinitions.map((definition) => (
-                    <div key={definition.key} className="relative flex flex-col items-start gap-1">
+                    <div
+                      key={definition.key}
+                      className="relative flex flex-col items-start gap-1"
+                    >
                       <div className="flex items-center justify-between gap-2 w-full h-7">
                         <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider truncate">
                           {getPropertyIcon(definition.type)}
                           <span className="truncate">{definition.name}</span>
                         </span>
                         {typeof definition.config === 'object' &&
-                        (definition.config as Record<string, unknown>).source === 'custom' ? (
+                        (definition.config as Record<string, unknown>)
+                          .source === 'custom' ? (
                           <button
                             aria-label={`Delete ${definition.name} property`}
                             className="inline-flex shrink-0 items-center rounded-md p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
@@ -1204,7 +1414,13 @@ function GenericCardDrawer({
                           members,
                           pluginPropertyTypeMap,
                           value: propertyValues[definition.key],
-                          onUpdateOptions: (options: Array<{ color?: string; label: string; value: string }>) => {
+                          onUpdateOptions: (
+                            options: Array<{
+                              color?: string
+                              label: string
+                              value: string
+                            }>,
+                          ) => {
                             void onUpdatePropertyOptions(
                               definition.key,
                               options,
@@ -1221,7 +1437,10 @@ function GenericCardDrawer({
                   ))}
 
                   {/* Add Property slot inside the grid */}
-                  <div className="relative flex flex-col items-start gap-1" ref={addPropertyPopoverRef}>
+                  <div
+                    className="relative flex flex-col items-start gap-1"
+                    ref={addPropertyPopoverRef}
+                  >
                     <div className="flex items-center h-7">
                       <button
                         className="group flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-zinc-600 uppercase tracking-wider transition"
@@ -1244,7 +1463,19 @@ function GenericCardDrawer({
                         <div className="grid gap-1.5 w-full">
                           <input
                             className="h-8 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-700 outline-none transition focus:ring-1 focus:ring-zinc-300 placeholder:text-zinc-400"
-                            onChange={(event) => setNewPropertyName(event.target.value)}
+                            onChange={(event) =>
+                              setNewPropertyName(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault()
+                                submitNewProperty()
+                              }
+                              if (event.key === 'Escape') {
+                                resetPropertyComposer()
+                                setActivePopover(null)
+                              }
+                            }}
                             placeholder="Property name"
                             value={newPropertyName}
                             autoFocus
@@ -1252,11 +1483,22 @@ function GenericCardDrawer({
                           <div className="relative w-full">
                             <select
                               className="h-8 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-700 outline-none transition focus:ring-1 focus:ring-zinc-300 appearance-none pr-8 cursor-pointer"
-                              onChange={(event) => setNewPropertyType(event.target.value)}
+                              onChange={(event) =>
+                                setNewPropertyType(event.target.value)
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.preventDefault()
+                                  submitNewProperty()
+                                }
+                              }}
                               value={newPropertyType}
                             >
                               {propertyTypeOptions.map((propertyType) => (
-                                <option key={propertyType.id} value={propertyType.id}>
+                                <option
+                                  key={propertyType.id}
+                                  value={propertyType.id}
+                                >
                                   {propertyType.label}
                                 </option>
                               ))}
@@ -1269,8 +1511,21 @@ function GenericCardDrawer({
                         {newPropertyType === 'select' ? (
                           <textarea
                             className="mt-1.5 min-h-14 w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-zinc-700 outline-none transition focus:ring-1 focus:ring-zinc-300 placeholder:text-zinc-400 resize-none"
-                            onChange={(event) => setNewSelectOptions(event.target.value)}
-                            placeholder={'Options (one per line)\nBacklog\nIn Progress\nDone'}
+                            onChange={(event) =>
+                              setNewSelectOptions(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (
+                                (event.metaKey || event.ctrlKey) &&
+                                event.key === 'Enter'
+                              ) {
+                                event.preventDefault()
+                                submitNewProperty()
+                              }
+                            }}
+                            placeholder={
+                              'Options (one per line)\nBacklog\nIn Progress\nDone'
+                            }
                             value={newSelectOptions}
                           />
                         ) : null}
@@ -1279,35 +1534,7 @@ function GenericCardDrawer({
                           <button
                             className="flex-1 inline-flex items-center justify-center rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white px-2 py-1.5 text-xs font-semibold shadow-sm transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none"
                             disabled={!newPropertyName.trim() || !cardType}
-                            onClick={() => {
-                              const options =
-                                newPropertyType === 'select'
-                                  ? newSelectOptions
-                                      .split('\n')
-                                      .map((line) => line.trim())
-                                      .filter((line) => line.length > 0)
-                                      .map((label) => ({
-                                        label,
-                                        value: label
-                                          .toLowerCase()
-                                          .replace(/[^a-z0-9]+/g, '_')
-                                          .replace(/^_+|_+$/g, ''),
-                                      }))
-                                  : []
-                              void onAddProperty(
-                                newPropertyName,
-                                newPropertyType,
-                                newPropertyType === 'user'
-                                  ? { allowMultiple: true }
-                                  : options.length
-                                    ? { options }
-                                    : {},
-                                cardType?.id,
-                              ).then(() => {
-                                resetPropertyComposer()
-                                setActivePopover(null)
-                              })
-                            }}
+                            onClick={submitNewProperty}
                             type="button"
                           >
                             Add
@@ -1333,7 +1560,10 @@ function GenericCardDrawer({
                     <Button
                       className="min-h-0 px-2 py-1 text-xs"
                       onClick={() =>
-                        void onSaveDefaultProperties(cardType.key, propertyValues)
+                        void onSaveDefaultProperties(
+                          cardType.key,
+                          propertyValues,
+                        )
                       }
                       tone="ghost"
                     >

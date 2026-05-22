@@ -1,18 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import {
-  Authenticated,
-  AuthLoading,
-  Unauthenticated,
-} from 'convex/react'
-import {
-  Layers3,
-  Settings2,
-  Tags,
-  Users,
-} from 'lucide-react'
+import { Authenticated, AuthLoading, Unauthenticated } from 'convex/react'
+import { Layers3, Settings2, Tags, Users } from 'lucide-react'
 import { Button } from '@plank/ui'
 import { useMemo, useState } from 'react'
 import { WorkspaceShell } from '../../components/workspace-shell'
+import type { KeyboardShortcut } from '../../lib/keyboard-shortcuts'
 import { usePlankApp } from '../../lib/providers'
 import { collectEnabledUiExtensions } from '../../lib/plugin-ui-extensions'
 import { AutomationTab } from './_settings/-automation-tab'
@@ -22,7 +14,6 @@ import { SchemaTab } from './_settings/-schema-tab'
 import { useSettingsData } from './_settings/-use-settings-data'
 import './settings.css'
 
- 
 const createRoute = createFileRoute as any
 
 export const Route = createRoute('/w/$workspaceSlug/settings')({
@@ -47,7 +38,9 @@ function WorkspaceSettingsRoute() {
   const enabledPluginIds = useMemo(
     () =>
       data.overview?.extensions
-        .filter((extension) => extension.installed && extension.status === 'enabled')
+        .filter(
+          (extension) => extension.installed && extension.status === 'enabled',
+        )
         .map((extension) => extension.manifest.id) ?? [],
     [data.overview?.extensions],
   )
@@ -63,6 +56,17 @@ function WorkspaceSettingsRoute() {
   const activePluginPanel = settingsExtensions.find(
     ({ extension, pluginId }) => activeTab === `${pluginId}:${extension.id}`,
   )
+  const settingsShortcuts = useMemo<KeyboardShortcut[]>(
+    () =>
+      TABS.map((tab, index) => ({
+        id: `settings.${tab.key}`,
+        keys: [String(index + 1)],
+        description: `Open ${tab.label}`,
+        scope: 'settings',
+        run: () => setActiveTab(tab.key),
+      })),
+    [],
+  )
 
   return (
     <>
@@ -71,12 +75,18 @@ function WorkspaceSettingsRoute() {
       </AuthLoading>
       <Unauthenticated>
         <div className="settings-loading">
-          <Link to="/login"><Button>Sign in to manage this workspace</Button></Link>
+          <Link to="/login">
+            <Button>Sign in to manage this workspace</Button>
+          </Link>
         </div>
       </Unauthenticated>
       <Authenticated>
         {data.overview ? (
-          <WorkspaceShell overview={data.overview} section="settings">
+          <WorkspaceShell
+            overview={data.overview}
+            section="settings"
+            shortcuts={settingsShortcuts}
+          >
             <div className="settings-page">
               <div className="settings-content">
                 <div className="settings-header">
@@ -102,7 +112,9 @@ function WorkspaceSettingsRoute() {
                         key={`${pluginId}:${extension.id}`}
                         type="button"
                         className={`settings-tab${activeTab === `${pluginId}:${extension.id}` ? ' active' : ''}`}
-                        onClick={() => setActiveTab(`${pluginId}:${extension.id}`)}
+                        onClick={() =>
+                          setActiveTab(`${pluginId}:${extension.id}`)
+                        }
                       >
                         {extension.label}
                       </button>
@@ -110,16 +122,24 @@ function WorkspaceSettingsRoute() {
                   </nav>
 
                   <div className="settings-panels">
-                    <div className={`settings-panel${activeTab === 'extensions' ? ' active' : ''}`}>
+                    <div
+                      className={`settings-panel${activeTab === 'extensions' ? ' active' : ''}`}
+                    >
                       <ExtensionsTab data={data} />
                     </div>
-                    <div className={`settings-panel${activeTab === 'schema' ? ' active' : ''}`}>
+                    <div
+                      className={`settings-panel${activeTab === 'schema' ? ' active' : ''}`}
+                    >
                       <SchemaTab data={data} />
                     </div>
-                    <div className={`settings-panel${activeTab === 'automation' ? ' active' : ''}`}>
+                    <div
+                      className={`settings-panel${activeTab === 'automation' ? ' active' : ''}`}
+                    >
                       <AutomationTab data={data} />
                     </div>
-                    <div className={`settings-panel${activeTab === 'members' ? ' active' : ''}`}>
+                    <div
+                      className={`settings-panel${activeTab === 'members' ? ' active' : ''}`}
+                    >
                       <MembersTab data={data} />
                     </div>
                     {activePluginPanel ? (

@@ -23,6 +23,11 @@ import { useHydrated } from '../lib/use-hydrated'
 import { usePlankApp } from '../lib/providers'
 import { collectEnabledUiExtensions } from '../lib/plugin-ui-extensions'
 import { NotificationCenter } from '../features/collaboration/NotificationCenter'
+import { KeyboardShortcutsDialog } from './keyboard-shortcuts-dialog'
+import {
+  type KeyboardShortcut,
+  useKeyboardShortcuts,
+} from '../lib/keyboard-shortcuts'
 import { useWorkspaceShellLayout } from './use-workspace-shell-layout'
 
 export function WorkspaceShell({
@@ -31,12 +36,14 @@ export function WorkspaceShell({
   header,
   overview,
   section = 'overview',
+  shortcuts = [],
 }: {
   activeBoardId?: string
   children: ReactNode
   header?: ReactNode
   overview: WorkspaceOverviewData
   section?: 'overview' | 'board' | 'settings'
+  shortcuts?: KeyboardShortcut[]
 }) {
   const auth = useConvexAuth()
   const hydrated = useHydrated()
@@ -47,6 +54,7 @@ export function WorkspaceShell({
   const createBoardMenuRef = useRef<HTMLDivElement>(null)
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [isCreateBoardMenuOpen, setIsCreateBoardMenuOpen] = useState(false)
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
   const [openBoardMenuId, setOpenBoardMenuId] = useState<string | null>(null)
   const [newBoardName, setNewBoardName] = useState('New board')
   const [newBoardTypeId, setNewBoardTypeId] = useState(
@@ -86,6 +94,7 @@ export function WorkspaceShell({
   const selectedNewBoardType = overview.boardTypes.find(
     (boardType) => boardType.id === newBoardTypeId,
   )
+  const firstBoardId = overview.boards[0]?.id
   const sidebarNavigationExtensions = useMemo(
     () =>
       collectEnabledUiExtensions({
@@ -345,6 +354,91 @@ export function WorkspaceShell({
     }
     void createBoard.mutateAsync()
   }
+  const shellShortcuts = useMemo<KeyboardShortcut[]>(
+    () => [
+      {
+        id: 'global.help',
+        keys: ['?'],
+        description: 'Show keyboard shortcuts',
+        scope: 'global',
+        run: () => setIsShortcutHelpOpen((open) => !open),
+      },
+      {
+        id: 'global.toggle-sidebar',
+        keys: ['mod+b'],
+        description: 'Show or hide sidebar',
+        scope: 'global',
+        run: () => setIsSidebarHidden((hidden) => !hidden),
+      },
+      {
+        id: 'global.workspace-home',
+        keys: ['g', 'h'],
+        description: 'Go to workspace home',
+        scope: 'global',
+        run: () =>
+          void navigate({
+            params: { workspaceSlug: overview.workspace.slug },
+            search: {},
+            to: '/w/$workspaceSlug',
+          } as never),
+      },
+      {
+        id: 'global.settings',
+        keys: ['g', 's'],
+        description: 'Go to workspace settings',
+        scope: 'global',
+        run: () =>
+          void navigate({
+            params: { workspaceSlug: overview.workspace.slug },
+            to: '/w/$workspaceSlug/settings',
+          } as never),
+      },
+      {
+        id: 'global.first-board',
+        keys: ['g', 'b'],
+        description: 'Go to first board',
+        scope: 'global',
+        disabled: !firstBoardId,
+        run: () =>
+          firstBoardId
+            ? void navigate({
+                params: {
+                  boardId: firstBoardId,
+                  workspaceSlug: overview.workspace.slug,
+                },
+                to: '/w/$workspaceSlug/boards/$boardId',
+              } as never)
+            : undefined,
+      },
+      {
+        id: 'global.create-board',
+        keys: ['n', 'b'],
+        description: 'Open new board menu',
+        scope: 'global',
+        run: () => setIsCreateBoardMenuOpen(true),
+      },
+      {
+        id: 'global.workspace-menu',
+        keys: ['n', 'w'],
+        description: 'Open workspace menu',
+        scope: 'global',
+        run: () => setIsWorkspaceMenuOpen(true),
+      },
+    ],
+    [
+      firstBoardId,
+      navigate,
+      overview.workspace.slug,
+      setIsSidebarHidden,
+      setIsCreateBoardMenuOpen,
+      setIsWorkspaceMenuOpen,
+    ],
+  )
+  const activeShortcuts = useMemo(
+    () => [...shellShortcuts, ...shortcuts],
+    [shellShortcuts, shortcuts],
+  )
+  useKeyboardShortcuts(activeShortcuts)
 
   return (
     <div className="flex min-h-screen bg-lavender-mist">
@@ -726,6 +820,12 @@ export function WorkspaceShell({
           </div>
         </main>
       </div>
+      {isShortcutHelpOpen ? (
+        <KeyboardShortcutsDialog
+          onClose={() => setIsShortcutHelpOpen(false)}
+          shortcuts={activeShortcuts}
+        />
+      ) : null}
     </div>
   )
 }

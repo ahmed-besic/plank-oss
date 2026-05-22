@@ -38,6 +38,7 @@ import type { Id } from '@convex/_generated/dataModel'
 import { CardDrawer } from '../../components/card-drawer'
 import { WorkspaceShell } from '../../components/workspace-shell'
 import { CommandPalette } from '../../components/command-palette'
+import type { KeyboardShortcut } from '../../lib/keyboard-shortcuts'
 import { buildBoardCommandItems } from '../../features/board/command-items'
 import { BoardSearchDialog } from '../../features/board/BoardSearchDialog'
 import { BoardActivityPage } from '../../features/collaboration/BoardActivityPage'
@@ -220,16 +221,6 @@ function BoardRoute() {
       ])
     },
   })
-  useEffect(() => {
-    const onHotkey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setCommandOpen((current) => !current)
-      }
-    }
-    window.addEventListener('keydown', onHotkey)
-    return () => window.removeEventListener('keydown', onHotkey)
-  }, [])
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       if (
@@ -866,6 +857,259 @@ function BoardRoute() {
       }))
     }
   }
+  const openAddViewMenu = () => {
+    const rect = addViewButtonRef.current?.getBoundingClientRect()
+    if (rect) {
+      setViewMenuPosition({
+        left: Math.min(rect.left, window.innerWidth - 240),
+        top: rect.bottom + 8,
+      })
+    }
+    setViewContextMenu(null)
+    setIsViewMenuOpen((open) => !open)
+  }
+  const createCardInFirstColumn = async () => {
+    const firstColumn = boardData?.board.columns[0]
+    if (!firstColumn) {
+      toast.error('No column is available for a new card.')
+      return
+    }
+
+    const cardId = await actions.createCard(
+      'New card',
+      firstColumn.id,
+      boardData.cardTypes[0]?.id,
+    )
+    if (cardId) {
+      updateSearch((current: any) => ({
+        ...current,
+        card: cardId,
+      }))
+    }
+  }
+  const boardShortcuts = useMemo<KeyboardShortcut[]>(() => {
+    const activeViewIndex = boardData?.views.findIndex(
+      (view) => (view.instanceId ?? view.viewId) === activeViewId,
+    )
+    const switchViewByOffset = (offset: number) => {
+      if (!boardData?.views.length || activeViewIndex === undefined) {
+        return
+      }
+      const normalizedIndex = activeViewIndex >= 0 ? activeViewIndex : 0
+      const nextView =
+        boardData.views[
+          (normalizedIndex + offset + boardData.views.length) %
+            boardData.views.length
+        ]
+      const nextInstanceId = nextView?.instanceId ?? nextView?.viewId
+      if (!nextInstanceId) {
+        return
+      }
+      setUtilityPage('none')
+      updateSearch((current: any) => ({
+        ...current,
+        view: nextInstanceId,
+      }))
+    }
+    const isBoardInputBlocked = Boolean(activeCard) || commandOpen || searchOpen
+
+    return [
+      {
+        id: 'board.command-palette',
+        keys: ['mod+k'],
+        description: 'Open command palette',
+        scope: 'board',
+        allowInInputs: true,
+        run: () => setCommandOpen(true),
+      },
+      {
+        id: 'board.search',
+        keys: ['/'],
+        description: 'Search cards',
+        scope: 'board',
+        disabled: Boolean(activeCard) || commandOpen,
+        run: () => setSearchOpen(true),
+      },
+      {
+        id: 'board.search-mod',
+        keys: ['mod+f'],
+        description: 'Search cards',
+        scope: 'board',
+        allowInInputs: true,
+        disabled: Boolean(activeCard) || commandOpen,
+        run: () => setSearchOpen(true),
+      },
+      {
+        id: 'board.create-card',
+        keys: ['n', 'c'],
+        description: 'Create card in first column',
+        scope: 'board',
+        disabled: isBoardInputBlocked || !boardData,
+        run: () => void createCardInFirstColumn(),
+      },
+      {
+        id: 'board.create-column',
+        keys: ['n', 'l'],
+        description: 'Create column',
+        scope: 'board',
+        disabled: isBoardInputBlocked,
+        run: () => void actions.createColumn('New list'),
+      },
+      {
+        id: 'board.add-view',
+        keys: ['v'],
+        description: 'Add a board view',
+        scope: 'board',
+        disabled: isBoardInputBlocked || !availableViewOptions.length,
+        run: openAddViewMenu,
+      },
+      {
+        id: 'board.next-view',
+        keys: [']'],
+        description: 'Next view',
+        scope: 'board',
+        disabled: isBoardInputBlocked || (boardData?.views.length ?? 0) <= 1,
+        run: () => switchViewByOffset(1),
+      },
+      {
+        id: 'board.previous-view',
+        keys: ['['],
+        description: 'Previous view',
+        scope: 'board',
+        disabled: isBoardInputBlocked || (boardData?.views.length ?? 0) <= 1,
+        run: () => switchViewByOffset(-1),
+      },
+      {
+        id: 'board.board-menu',
+        keys: ['b'],
+        description: 'Open board switcher',
+        scope: 'board',
+        disabled: isBoardInputBlocked,
+        run: () => setIsBoardMenuOpen((open) => !open),
+      },
+      {
+        id: 'board.activity',
+        keys: ['a'],
+        description: 'Toggle activity',
+        scope: 'board',
+        disabled: isBoardInputBlocked,
+        run: () =>
+          setUtilityPage((current) =>
+            current === 'activity' ? 'none' : 'activity',
+          ),
+      },
+      {
+        id: 'board.extensions',
+        keys: ['e'],
+        description: 'Toggle extensions',
+        scope: 'board',
+        disabled: isBoardInputBlocked,
+        run: () =>
+          setUtilityPage((current) =>
+            current === 'extensions' ? 'none' : 'extensions',
+          ),
+      },
+      {
+        id: 'board.inbox',
+        keys: ['i'],
+        description: 'Toggle inbox',
+        scope: 'board',
+        disabled:
+          isBoardInputBlocked ||
+          utilityPage !== 'none' ||
+          !activeViewId ||
+          !activeViewRecord,
+        run: () =>
+          activeViewId
+            ? void actions.updateViewConfig(activeViewId, {
+                ...(activeViewRecord?.config ?? {}),
+                inboxVisible: !Boolean(activeViewRecord?.config?.inboxVisible),
+              })
+            : undefined,
+      },
+      {
+        id: 'board.close-panel',
+        keys: ['escape'],
+        description: 'Close board menu or utility panel',
+        scope: 'board',
+        disabled: Boolean(activeCard) || commandOpen || searchOpen,
+        run: () => {
+          setIsBoardMenuOpen(false)
+          setIsViewMenuOpen(false)
+          setViewContextMenu(null)
+          setUtilityPage('none')
+        },
+      },
+      {
+        id: 'card.save-close-help',
+        keys: ['mod+enter'],
+        description: 'Save and close card',
+        scope: 'card',
+        disabled: !activeCard,
+        allowInInputs: true,
+        run: () => undefined,
+      },
+      {
+        id: 'card.escape-help',
+        keys: ['escape'],
+        description: 'Save and close card when focus is not in the editor',
+        scope: 'card',
+        disabled: !activeCard,
+        run: () => undefined,
+      },
+      {
+        id: 'card.title-help',
+        keys: ['t'],
+        description: 'Focus title',
+        scope: 'card',
+        disabled: !activeCard,
+        run: () => undefined,
+      },
+      {
+        id: 'card.description-help',
+        keys: ['d'],
+        description: 'Focus description',
+        scope: 'card',
+        disabled: !activeCard,
+        run: () => undefined,
+      },
+      {
+        id: 'card.metadata-help',
+        keys: ['s', 'g', 'l', 'p'],
+        description: 'Open status, tags, relations, or add-property panel',
+        scope: 'card',
+        disabled: !activeCard,
+        run: () => undefined,
+      },
+      {
+        id: 'card.comments-help',
+        keys: ['mod+shift+c'],
+        description: 'Toggle comments',
+        scope: 'card',
+        disabled: !activeCard,
+        allowInInputs: true,
+        run: () => undefined,
+      },
+      {
+        id: 'card.upload-help',
+        keys: ['u'],
+        description: 'Upload image',
+        scope: 'card',
+        disabled: !activeCard,
+        run: () => undefined,
+      },
+    ]
+  }, [
+    actions,
+    activeCard,
+    activeViewId,
+    activeViewRecord,
+    availableViewOptions.length,
+    boardData,
+    commandOpen,
+    searchOpen,
+    utilityPage,
+  ])
 
   return (
     <>
@@ -885,6 +1129,7 @@ function BoardRoute() {
             activeBoardId={boardId}
             overview={overviewData}
             section="board"
+            shortcuts={boardShortcuts}
           >
             <div className="flex min-h-[calc(100vh-64px)] flex-col">
               <header className="sticky top-0 z-20 border-b border-border-subtle bg-cloud-white/80 backdrop-blur-xl">
@@ -1013,21 +1258,7 @@ function BoardRoute() {
                         <button
                           ref={addViewButtonRef}
                           className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-text-tertiary transition-all duration-200 hover:bg-cloud-white/60 hover:text-text-primary"
-                          onClick={() => {
-                            const rect =
-                              addViewButtonRef.current?.getBoundingClientRect()
-                            if (rect) {
-                              setViewMenuPosition({
-                                left: Math.min(
-                                  rect.left,
-                                  window.innerWidth - 240,
-                                ),
-                                top: rect.bottom + 8,
-                              })
-                            }
-                            setViewContextMenu(null)
-                            setIsViewMenuOpen((open) => !open)
-                          }}
+                          onClick={openAddViewMenu}
                           type="button"
                         >
                           <Plus className="h-3.5 w-3.5" />

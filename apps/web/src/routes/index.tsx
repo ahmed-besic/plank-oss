@@ -14,7 +14,6 @@ import { api } from '@convex/_generated/api'
 import { usePlankApp } from '../lib/providers'
 import { useHydrated } from '../lib/use-hydrated'
 
- 
 const createRoute = createFileRoute as any
 
 export const Route = createRoute('/')({ component: Home })
@@ -45,6 +44,16 @@ function Home() {
       })
     },
   })
+  const submitCreateWorkspace = () => {
+    if (
+      !memberName.trim() ||
+      !workspaceName.trim() ||
+      createWorkspace.isPending
+    ) {
+      return
+    }
+    createWorkspace.mutate()
+  }
 
   if (workspaces?.length) {
     const firstWorkspace = workspaces[0]
@@ -97,6 +106,12 @@ function Home() {
               aria-label="Your name"
               className="w-72"
               onChange={(event) => setMemberName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  submitCreateWorkspace()
+                }
+              }}
               placeholder="Your name"
               value={memberName}
             />
@@ -104,11 +119,17 @@ function Home() {
               aria-label="Workspace name"
               className="w-80"
               onChange={(event) => setWorkspaceName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  submitCreateWorkspace()
+                }
+              }}
               value={workspaceName}
             />
             <Button
               disabled={!memberName.trim() || !workspaceName.trim()}
-              onClick={() => createWorkspace.mutate()}
+              onClick={submitCreateWorkspace}
             >
               Create workspace
             </Button>

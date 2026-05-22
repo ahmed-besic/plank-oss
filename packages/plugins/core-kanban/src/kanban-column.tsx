@@ -82,9 +82,15 @@ export function StaticColumn({
   cardTypes: CardTypeSummary[];
   cards: CardWithColumn[];
   column: ColumnData;
-  onCreateCard: (columnId: string, title: string) => Promise<string | undefined>;
+  onCreateCard: (
+    columnId: string,
+    title: string,
+  ) => Promise<string | undefined>;
   onOpenCard: (cardId: string) => void;
-  onSetNewCardPlacement: (columnId: string, placement: "top" | "bottom") => void;
+  onSetNewCardPlacement: (
+    columnId: string,
+    placement: "top" | "bottom",
+  ) => void;
   newCardPlacement: "top" | "bottom";
   members: Parameters<typeof getCardAssigneeVisuals>[2];
   tagDefinitionMap: Map<string, { color?: string; id: string; name: string }>;
@@ -195,7 +201,9 @@ export function StaticColumn({
                 tags={card.tagIds
                   .map((tagId) => tagDefinitionMap.get(tagId))
                   .filter(
-                    (tag): tag is { color?: string; id: string; name: string } =>
+                    (
+                      tag,
+                    ): tag is { color?: string; id: string; name: string } =>
                       Boolean(tag),
                   )}
               />
@@ -234,7 +242,10 @@ export function SortableColumn({
   cardTypes: CardTypeSummary[];
   cards: CardWithColumn[];
   column: ColumnData;
-  onCreateCard: (columnId: string, title: string) => Promise<string | undefined>;
+  onCreateCard: (
+    columnId: string,
+    title: string,
+  ) => Promise<string | undefined>;
   onDeleteColumn: (columnId: string) => Promise<void>;
   onHideColumn: (columnId: string) => void;
   onOpenCard: (cardId: string) => void;
@@ -351,6 +362,16 @@ export function SortableColumn({
               className="kanban-column-title-input min-w-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-text-primary shadow-none outline-none ring-0 transition-none focus:border-0 focus:shadow-none focus:outline-none focus:ring-0"
               onBlur={() => void onRenameColumn(column.id, title)}
               onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                  setTitle(column.title);
+                  event.currentTarget.blur();
+                }
+              }}
               value={title}
             />
           </div>
@@ -473,7 +494,9 @@ export function SortableColumn({
                   tags={card.tagIds
                     .map((tagId) => tagDefinitionMap.get(tagId))
                     .filter(
-                      (tag): tag is { color?: string; id: string; name: string } =>
+                      (
+                        tag,
+                      ): tag is { color?: string; id: string; name: string } =>
                         Boolean(tag),
                     )}
                 />
