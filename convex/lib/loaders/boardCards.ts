@@ -120,6 +120,7 @@ export function buildCardTypeSummaries({
 						: field.valueType,
 				orderKey: String(index),
 				required: field.required,
+				defaultValue: field.defaultValue,
 				config: {
 					options: normalizePropertyOptions({
 						enumOptions: field.enumOptions,
@@ -134,8 +135,10 @@ export function buildCardTypeSummaries({
 					type: field.propertyType ?? field.valueType,
 					orderKey: String(coreSchema.length + index),
 					required: field.required,
+					defaultValue: field.defaultValue,
 					config: {
 						source: "custom",
+						allowMultiple: field.propertyType === "user" ? true : undefined,
 						options: normalizePropertyOptions({
 							enumOptions: field.enumOptions,
 							enumValues: field.enumValues,

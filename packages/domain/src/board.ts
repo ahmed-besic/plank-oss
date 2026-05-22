@@ -35,6 +35,7 @@ export interface PropertyDefinitionConfig {
   options?: PropertyOption[];
   targetBoardId?: string | null;
   allowMultiple?: boolean;
+  source?: "core" | "custom";
 }
 
 export interface BlockNoteCardBodyDocument {

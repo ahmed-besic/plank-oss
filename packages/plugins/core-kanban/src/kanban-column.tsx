@@ -1,20 +1,30 @@
 import { useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { CardWithColumn } from "@plank/board-views";
+import type { CardTypeSummary } from "@plank/domain";
 import { Input } from "@plank/ui";
 import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { PresentationalCard, SortableCard } from "./kanban-cards";
+import {
+  getCardPriorityVisual,
+  getCardAssigneeVisuals,
+  PresentationalCard,
+  SortableCard,
+} from "./kanban-cards";
 import type { ColumnData } from "./types";
 import { SortableContext } from "@dnd-kit/sortable";
 
 export function ColumnOverlay({
+  cardTypes,
   cards,
   column,
+  members,
   tagDefinitionMap,
 }: {
+  cardTypes: CardTypeSummary[];
   cards: CardWithColumn[];
   column: ColumnData;
+  members: Parameters<typeof getCardAssigneeVisuals>[2];
   tagDefinitionMap: Map<string, { color?: string; id: string; name: string }>;
 }) {
   return (
@@ -33,7 +43,9 @@ export function ColumnOverlay({
         {cards.slice(0, 3).map((card) => (
           <PresentationalCard
             key={card.id}
+            assignees={getCardAssigneeVisuals(card, cardTypes, members)}
             optimistic={card.id.startsWith("optimistic:")}
+            priority={getCardPriorityVisual(card, cardTypes)}
             tags={card.tagIds
               .map((tagId) => tagDefinitionMap.get(tagId))
               .filter(
@@ -56,21 +68,25 @@ export function ColumnOverlay({
 
 /* ─── Static column (Inbox — not sortable, not deletable) ─── */
 export function StaticColumn({
+  cardTypes,
   cards,
   column,
   onCreateCard,
   onOpenCard,
   onSetNewCardPlacement,
   newCardPlacement,
+  members,
   tagDefinitionMap,
   unreadCardIdSet,
 }: {
+  cardTypes: CardTypeSummary[];
   cards: CardWithColumn[];
   column: ColumnData;
   onCreateCard: (columnId: string, title: string) => Promise<string | undefined>;
   onOpenCard: (cardId: string) => void;
   onSetNewCardPlacement: (columnId: string, placement: "top" | "bottom") => void;
   newCardPlacement: "top" | "bottom";
+  members: Parameters<typeof getCardAssigneeVisuals>[2];
   tagDefinitionMap: Map<string, { color?: string; id: string; name: string }>;
   unreadCardIdSet: Set<string>;
 }) {
@@ -171,9 +187,11 @@ export function StaticColumn({
               <SortableCard
                 key={card.id}
                 card={card}
+                cardTypes={cardTypes}
                 columnId={card.resolvedColumnId}
                 hasUnreadExternal={unreadCardIdSet.has(card.id)}
                 onOpenCard={onOpenCard}
+                members={members}
                 tags={card.tagIds
                   .map((tagId) => tagDefinitionMap.get(tagId))
                   .filter(
@@ -198,6 +216,7 @@ export function StaticColumn({
 /* ─── Sortable column (regular columns) ─── */
 export function SortableColumn({
   canDelete,
+  cardTypes,
   cards,
   column,
   onCreateCard,
@@ -207,10 +226,12 @@ export function SortableColumn({
   onRenameColumn,
   onSetNewCardPlacement,
   newCardPlacement,
+  members,
   tagDefinitionMap,
   unreadCardIdSet,
 }: {
   canDelete: boolean;
+  cardTypes: CardTypeSummary[];
   cards: CardWithColumn[];
   column: ColumnData;
   onCreateCard: (columnId: string, title: string) => Promise<string | undefined>;
@@ -223,6 +244,7 @@ export function SortableColumn({
     placement: "top" | "bottom",
   ) => void;
   newCardPlacement: "top" | "bottom";
+  members: Parameters<typeof getCardAssigneeVisuals>[2];
   tagDefinitionMap: Map<string, { color?: string; id: string; name: string }>;
   unreadCardIdSet: Set<string>;
 }) {
@@ -443,9 +465,11 @@ export function SortableColumn({
                 <SortableCard
                   key={card.id}
                   card={card}
+                  cardTypes={cardTypes}
                   columnId={card.resolvedColumnId}
                   hasUnreadExternal={unreadCardIdSet.has(card.id)}
                   onOpenCard={onOpenCard}
+                  members={members}
                   tags={card.tagIds
                     .map((tagId) => tagDefinitionMap.get(tagId))
                     .filter(

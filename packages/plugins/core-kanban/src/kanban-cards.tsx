@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { CardWithColumn } from "@plank/board-views";
+import type { CardTypeSummary, WorkspaceMemberSummary } from "@plank/domain";
 import { getTagChipStyle } from "@plank/ui";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,6 +10,90 @@ export type TagVisual = {
   name: string;
   color?: string;
 };
+
+export type PriorityVisual = {
+  label: string;
+  color?: string;
+};
+
+export type AssigneeVisual = {
+  id: string;
+  label: string;
+};
+
+function getPriorityFallbackColor(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized === "low") return "green";
+  if (normalized === "medium" || normalized === "middle") return "amber";
+  if (normalized === "high") return "red";
+  return "slate";
+}
+
+export function getCardPriorityVisual(
+  card: Pick<CardWithColumn, "fields" | "typeKey">,
+  cardTypes: CardTypeSummary[],
+): PriorityVisual | null {
+  const rawPriority = card.fields.core.priority;
+  if (typeof rawPriority !== "string" || !rawPriority.trim()) {
+    return null;
+  }
+
+  const priority = rawPriority.trim();
+  const definition = cardTypes
+    .find((cardType) => cardType.key === card.typeKey)
+    ?.propertiesSchema.find((property) => property.key === "priority");
+  const option = definition?.config?.options?.find(
+    (item) => item.value === priority,
+  );
+
+  return {
+    label: option?.label ?? priority,
+    color: option?.color ?? getPriorityFallbackColor(priority),
+  };
+}
+
+export function getCardAssigneeVisuals(
+  card: Pick<CardWithColumn, "fields" | "typeKey">,
+  cardTypes: CardTypeSummary[],
+  members: WorkspaceMemberSummary[],
+): AssigneeVisual[] {
+  const cardType = cardTypes.find((candidate) => candidate.key === card.typeKey);
+  if (!cardType) {
+    return [];
+  }
+
+  const memberByUserId = new Map(members.map((member) => [member.userId, member]));
+  const userIds = new Set<string>();
+
+  for (const definition of cardType.propertiesSchema) {
+    if (definition.type !== "user") {
+      continue;
+    }
+    const source =
+      definition.config?.source === "custom" ? card.fields.custom : card.fields.core;
+    const value = source[definition.key];
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === "string" && entry) {
+          userIds.add(entry);
+        }
+      }
+      continue;
+    }
+    if (typeof value === "string" && value) {
+      userIds.add(value);
+    }
+  }
+
+  return [...userIds].flatMap((userId) => {
+    const member = memberByUserId.get(userId);
+    if (!member) {
+      return [];
+    }
+    const label = member.name?.trim() || member.email?.trim() || member.userId;
+    return [{ id: member.userId, label }];
+  });
+}
 
 function clampFourLinesStyle() {
   return {
@@ -86,14 +171,18 @@ function AdaptiveCardTitle({ title }: { title: string }) {
 }
 
 export function PresentationalCard({
+  assignees,
   hasUnreadExternal = false,
   optimistic,
+  priority,
   tags,
   title,
   transparent = false,
 }: {
+  assignees?: AssigneeVisual[];
   hasUnreadExternal?: boolean;
   optimistic: boolean;
+  priority?: PriorityVisual | null;
   tags: TagVisual[];
   title: string;
   transparent?: boolean;
@@ -114,6 +203,20 @@ export function PresentationalCard({
           title="Unread external changes"
         />
       ) : null}
+      {assignees?.length ? (
+        <div className="absolute right-2 bottom-2 flex -space-x-1">
+          {assignees.slice(0, 3).map((assignee) => (
+            <span
+              key={assignee.id}
+              title={assignee.label}
+              aria-label={assignee.label}
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-cloud-white bg-surface-sunken text-[10px] font-bold uppercase text-text-secondary shadow-sm"
+            >
+              {assignee.label.slice(0, 1)}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {optimistic ? (
         <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-text-placeholder">
           Saving
@@ -123,8 +226,20 @@ export function PresentationalCard({
       <div className="flex flex-col gap-0.5">
         <AdaptiveCardTitle title={title} />
 
-        {tags.length ? (
+        {priority || tags.length ? (
           <div className="flex flex-wrap gap-0.5">
+            {priority ? (
+              <span
+                className="tag-chip"
+                style={{
+                  ...getTagChipStyle(priority.color ?? "slate"),
+                  padding: "1px 6px",
+                  fontSize: "10px",
+                }}
+              >
+                {priority.label}
+              </span>
+            ) : null}
             {tags.slice(0, 2).map((tag) => (
               <span
                 key={tag.id}
@@ -147,15 +262,19 @@ export function PresentationalCard({
 
 export function SortableCard({
   card,
+  cardTypes,
   columnId,
   hasUnreadExternal,
   onOpenCard,
+  members,
   tags,
 }: {
   card: CardWithColumn;
+  cardTypes: CardTypeSummary[];
   columnId: string;
   hasUnreadExternal: boolean;
   onOpenCard: (cardId: string) => void;
+  members: WorkspaceMemberSummary[];
   tags: TagVisual[];
 }) {
   const {
@@ -188,8 +307,10 @@ export function SortableCard({
       {...listeners}
     >
       <PresentationalCard
+        assignees={getCardAssigneeVisuals(card, cardTypes, members)}
         hasUnreadExternal={hasUnreadExternal}
         optimistic={card.id.startsWith("optimistic:")}
+        priority={getCardPriorityVisual(card, cardTypes)}
         tags={tags}
         title={card.meta.title}
       />
@@ -199,18 +320,24 @@ export function SortableCard({
 
 export function CardOverlay({
   card,
+  cardTypes,
   hasUnreadExternal,
+  members,
   tags,
 }: {
   card: CardWithColumn;
+  cardTypes: CardTypeSummary[];
   hasUnreadExternal: boolean;
+  members: WorkspaceMemberSummary[];
   tags: TagVisual[];
 }) {
   return (
     <div className="w-[268px] max-w-[268px] min-w-0 rotate-1">
       <PresentationalCard
+        assignees={getCardAssigneeVisuals(card, cardTypes, members)}
         hasUnreadExternal={hasUnreadExternal}
         optimistic={card.id.startsWith("optimistic:")}
+        priority={getCardPriorityVisual(card, cardTypes)}
         tags={tags}
         title={card.meta.title}
         transparent

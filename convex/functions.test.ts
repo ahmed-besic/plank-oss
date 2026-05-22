@@ -29,6 +29,7 @@ import {
   removeCardRelation,
   updateCard,
 } from "./cards";
+import { createProperty } from "./cardTypes";
 import {
   create as createComment,
   deleteComment,
@@ -292,6 +293,45 @@ describe("board functions", () => {
     expect(db.rows("cardChangeEvents").at(-1)).toMatchObject({
       cardId: created.cardId,
       kind: "delete",
+    });
+  });
+
+  it("allows custom user properties to store multiple assignees", async () => {
+    const db = createBaseDb();
+    const ctx = createMockCtx({ db });
+
+    await (
+      createProperty as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      typeKey: "core.todo",
+      name: "Assignees",
+      type: "user",
+      config: { allowMultiple: true },
+    });
+
+    const created = await (
+      createCard as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+      title: "Coordinate work",
+      typeKey: "core.todo",
+    });
+
+    await (
+      updateCard as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+      cardId: created.cardId,
+      propertyUpdates: {
+        assignees: ["user_1", "user_2"],
+      },
+    });
+
+    expect(db.rows("cards")[0]?.fields).toMatchObject({
+      custom: { assignees: ["user_1", "user_2"] },
     });
   });
 

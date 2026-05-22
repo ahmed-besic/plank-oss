@@ -11,7 +11,13 @@ import { emitCardEvent } from "./plugins";
 import { getCardScopeId, SHARED_VIEW_SCOPE_ID } from "./plugins";
 
 type DbCtx = MutationCtx | QueryCtx;
-type CardFieldValue = string | number | boolean | null;
+type ScalarValueType = "string" | "number" | "boolean" | "timestamp";
+type RuntimeFieldSchema = {
+  key: string;
+  valueType: ScalarValueType;
+  propertyType?: string;
+};
+type CardFieldValue = string | string[] | number | boolean | null;
 type CardChangeKind =
   | "new_card"
   | "title"
@@ -46,7 +52,7 @@ function sanitizeBodyForPersistence(body: unknown) {
 }
 
 function validateScalar(
-  valueType: "string" | "number" | "boolean" | "timestamp",
+  valueType: ScalarValueType,
   value: unknown,
 ) {
   if (value === null || value === undefined) {
@@ -65,6 +71,13 @@ function validateScalar(
     return typeof value === "number" && Number.isFinite(value);
   }
   return false;
+}
+
+function validateFieldValue(field: RuntimeFieldSchema, value: unknown) {
+  if (field.propertyType === "user" && Array.isArray(value)) {
+    return value.every((entry) => typeof entry === "string" && entry.length > 0);
+  }
+  return validateScalar(field.valueType, value);
 }
 
 function getStatusByKey(boardType: Doc<"boardTypes">) {
@@ -275,7 +288,7 @@ function validateFieldPatch({
   schema,
 }: {
   updates: Record<string, unknown>;
-  schema: Array<{ key: string; valueType: "string" | "number" | "boolean" | "timestamp" }>;
+  schema: RuntimeFieldSchema[];
 }) {
   const schemaMap = new Map(schema.map((field) => [field.key, field]));
   for (const [key, value] of Object.entries(updates)) {
@@ -283,7 +296,7 @@ function validateFieldPatch({
     if (!field) {
       throw new Error(`Unknown field key: ${key}`);
     }
-    if (!validateScalar(field.valueType, value)) {
+    if (!validateFieldValue(field, value)) {
       throw new Error(`Invalid field value: ${key}`);
     }
   }
@@ -375,10 +388,12 @@ export function buildCoreAndCustomSchema({
   const coreSchema = registry.manifest.fields.core.map((field) => ({
     key: field.key,
     valueType: field.valueType,
+    propertyType: undefined,
   }));
   const customSchema = customFields.map((field) => ({
     key: field.key,
     valueType: field.valueType,
+    propertyType: field.propertyType,
   }));
   return { coreSchema, customSchema };
 }
@@ -389,8 +404,8 @@ export function validateAndSplitPropertyUpdates({
   customSchema,
 }: {
   propertyUpdates: Record<string, unknown>;
-  coreSchema: Array<{ key: string; valueType: "string" | "number" | "boolean" | "timestamp" }>;
-  customSchema: Array<{ key: string; valueType: "string" | "number" | "boolean" | "timestamp" }>;
+  coreSchema: RuntimeFieldSchema[];
+  customSchema: RuntimeFieldSchema[];
 }) {
   const coreKeySet = new Set(coreSchema.map((field) => field.key));
   const customKeySet = new Set(customSchema.map((field) => field.key));

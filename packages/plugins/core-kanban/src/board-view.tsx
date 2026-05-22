@@ -76,6 +76,7 @@ export function BoardView(props: ViewRenderProps) {
           {/* Inbox column — fixed, non-sortable */}
           {state.inboxColumn && (
             <StaticColumn
+              cardTypes={props.cardTypes}
               cards={state.displayGrouped[state.inboxColumn.id] ?? []}
               column={state.inboxColumn}
               onCreateCard={state.createCardInColumn}
@@ -84,6 +85,7 @@ export function BoardView(props: ViewRenderProps) {
               newCardPlacement={
                 state.newCardPlacementByColumn[state.inboxColumn.id] ?? "bottom"
               }
+              members={props.members}
               tagDefinitionMap={state.tagDefinitionMap}
               unreadCardIdSet={state.unreadCardIdSet}
             />
@@ -102,6 +104,7 @@ export function BoardView(props: ViewRenderProps) {
               return (
                 <SortableColumn
                   canDelete={props.columns.length > 1}
+                  cardTypes={props.cardTypes}
                   cards={state.displayGrouped[column.id] ?? []}
                   column={column}
                   key={column.id}
@@ -114,6 +117,7 @@ export function BoardView(props: ViewRenderProps) {
                   newCardPlacement={
                     state.newCardPlacementByColumn[column.id] ?? "bottom"
                   }
+                  members={props.members}
                   tagDefinitionMap={state.tagDefinitionMap}
                   unreadCardIdSet={state.unreadCardIdSet}
                 />
@@ -160,15 +164,19 @@ export function BoardView(props: ViewRenderProps) {
           {state.dragType === "card" && state.activeCard ? (
             <CardOverlay
               card={state.activeCard}
+              cardTypes={props.cardTypes}
               hasUnreadExternal={state.unreadCardIdSet.has(state.activeCard.id)}
+              members={props.members}
               tags={activeCardTags}
             />
           ) : null}
 
           {state.dragType === "column" && state.activeColumn ? (
             <ColumnOverlay
+              cardTypes={props.cardTypes}
               cards={state.displayGrouped[state.activeColumn.id] ?? []}
               column={state.activeColumn}
+              members={props.members}
               tagDefinitionMap={state.tagDefinitionMap}
             />
           ) : null}

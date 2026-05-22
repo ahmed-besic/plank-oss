@@ -26,6 +26,7 @@ import {
   CheckSquare,
   List,
   Sparkles,
+  Users,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -82,6 +83,8 @@ function getPropertyIcon(type: string) {
     case 'date':
     case 'timestamp':
       return <Calendar className="h-4 w-4 text-zinc-400" />
+    case 'user':
+      return <Users className="h-4 w-4 text-zinc-400" />
     default:
       return <Sparkles className="h-4 w-4 text-zinc-400" />
   }
@@ -1294,7 +1297,11 @@ function GenericCardDrawer({
                               void onAddProperty(
                                 newPropertyName,
                                 newPropertyType,
-                                options.length ? { options } : {},
+                                newPropertyType === 'user'
+                                  ? { allowMultiple: true }
+                                  : options.length
+                                    ? { options }
+                                    : {},
                                 cardType?.id,
                               ).then(() => {
                                 resetPropertyComposer()

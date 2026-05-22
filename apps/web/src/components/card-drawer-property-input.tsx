@@ -19,6 +19,154 @@ function getOptionColor(option: { label: string; value: string; color?: string }
   return 'violet'
 }
 
+function getMemberLabel(member: BoardPageData['members'][number]) {
+  if (member.name?.trim()) return member.name
+  if (member.email?.trim()) return member.email
+  return member.userId
+}
+
+function UserPropertyInput({
+  members,
+  onChange,
+  value,
+}: {
+  members: BoardPageData['members']
+  onChange: (value: unknown) => void
+  value: unknown
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const selectedUserIds = Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : typeof value === 'string' && value
+      ? [value]
+      : []
+  const selectedSet = new Set(selectedUserIds)
+  const selectedMembers = selectedUserIds
+    .map((userId) => members.find((member) => member.userId === userId))
+    .filter((member): member is BoardPageData['members'][number] => Boolean(member))
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  const toggleUser = (userId: string) => {
+    const next = selectedSet.has(userId)
+      ? selectedUserIds.filter((id) => id !== userId)
+      : [...selectedUserIds, userId]
+    onChange(next)
+  }
+
+  if (!members.length) {
+    return <span className="text-sm text-text-placeholder">No teammates</span>
+  }
+
+  return (
+    <div className="relative inline-block max-w-full" ref={containerRef}>
+      <button
+        type="button"
+        aria-label="Select people"
+        aria-expanded={open}
+        className="inline-flex max-w-[260px] items-center gap-2 rounded-lg px-2.5 py-1 text-left text-sm text-text-secondary transition hover:text-text-primary"
+        onClick={() => setOpen((current) => !current)}
+      >
+        {selectedMembers.length ? (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="flex -space-x-1">
+              {selectedMembers.slice(0, 3).map((member) => (
+                <span
+                  key={member.id}
+                  className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-900 bg-zinc-200 text-[10px] font-bold uppercase text-zinc-600"
+                  title={getMemberLabel(member)}
+                >
+                  {getMemberLabel(member).slice(0, 1)}
+                </span>
+              ))}
+            </span>
+            <span className="truncate">
+              {selectedMembers.length === 1
+                ? getMemberLabel(selectedMembers[0]!)
+                : `${selectedMembers.length} people`}
+            </span>
+          </span>
+        ) : (
+          <span className="text-text-placeholder">Select people</span>
+        )}
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-text-tertiary transition ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-xl border border-border-subtle bg-cloud-white p-1.5 shadow-2xl">
+          <div className="max-h-60 space-y-0.5 overflow-y-auto pr-0.5">
+            {members.map((member) => {
+              const selected = selectedSet.has(member.userId)
+              const label = getMemberLabel(member)
+              return (
+                <button
+                  key={member.id}
+                  type="button"
+                  aria-pressed={selected}
+                  className={[
+                    'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition',
+                    selected
+                      ? 'bg-surface-sunken text-text-primary'
+                      : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+                  ].join(' ')}
+                  onClick={() => toggleUser(member.userId)}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={[
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold uppercase',
+                      selected ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-600',
+                    ].join(' ')}
+                  >
+                    {label.slice(0, 1)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  <span
+                    className={[
+                      'flex h-4 w-4 items-center justify-center rounded border text-[10px]',
+                      selected
+                        ? 'border-zinc-800 bg-zinc-900 text-white'
+                        : 'border-zinc-300 text-transparent',
+                    ].join(' ')}
+                  >
+                    ✓
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function SelectPropertyInput({
   definition,
   onChange,
@@ -429,6 +577,16 @@ export function renderTypedPropertyInput({
         definition={definition}
         onChange={onChange}
         onUpdateOptions={onUpdateOptions}
+        value={value}
+      />
+    )
+  }
+
+  if (propertyType === 'user') {
+    return (
+      <UserPropertyInput
+        members={members}
+        onChange={onChange}
         value={value}
       />
     )

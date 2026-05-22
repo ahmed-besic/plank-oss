@@ -55,6 +55,7 @@ export interface CardPropertyDefinitionSummary {
 	orderKey: string;
 	required?: boolean;
 	config?: PropertyDefinitionConfig;
+	defaultValue?: unknown;
 }
 
 export interface CardTypeSummary {

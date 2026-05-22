@@ -13,6 +13,14 @@ import { useMemo, useState } from "react";
 import { taskCardTypeKey } from "../manifest";
 
 type TaskCard = ViewRenderProps["cards"][number];
+type PriorityVisual = {
+  label: string;
+  color?: string;
+};
+type AssigneeVisual = {
+  id: string;
+  label: string;
+};
 
 const INBOX_KEY = "__inbox";
 
@@ -40,6 +48,74 @@ function dueDateColor(value: unknown) {
   return "text-text-tertiary";
 }
 
+function getCardPriorityVisual(
+  card: TaskCard,
+  cardTypes: ViewRenderProps["cardTypes"],
+): PriorityVisual | null {
+  const rawPriority = card.fields.core.priority;
+  if (typeof rawPriority !== "string" || !rawPriority.trim()) {
+    return null;
+  }
+
+  const priority = rawPriority.trim();
+  const definition = cardTypes
+    .find((cardType) => cardType.key === card.typeKey)
+    ?.propertiesSchema.find((property) => property.key === "priority");
+  const option = definition?.config?.options?.find(
+    (item) => item.value === priority,
+  );
+
+  return {
+    label: option?.label ?? priority,
+    color: option?.color ?? getPriorityFallbackColor(priority),
+  };
+}
+
+function getPriorityFallbackColor(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized === "low") return "green";
+  if (normalized === "medium" || normalized === "middle") return "amber";
+  if (normalized === "high") return "red";
+  return "slate";
+}
+
+function getCardAssigneeVisuals(
+  card: TaskCard,
+  props: ViewRenderProps,
+): AssigneeVisual[] {
+  const cardType = props.cardTypes.find((candidate) => candidate.key === card.typeKey);
+  if (!cardType) {
+    return [];
+  }
+
+  const memberByUserId = new Map(props.members.map((member) => [member.userId, member]));
+  const userIds = new Set<string>();
+  for (const definition of cardType.propertiesSchema) {
+    if (definition.type !== "user") {
+      continue;
+    }
+    const source =
+      definition.config?.source === "custom" ? card.fields.custom : card.fields.core;
+    const value = source[definition.key];
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === "string" && entry) {
+          userIds.add(entry);
+        }
+      }
+    } else if (typeof value === "string" && value) {
+      userIds.add(value);
+    }
+  }
+
+  return [...userIds].flatMap((userId) => {
+    const member = memberByUserId.get(userId);
+    if (!member) return [];
+    const label = member.name?.trim() || member.email?.trim() || member.userId;
+    return [{ id: member.userId, label }];
+  });
+}
+
 function TaskItem({
   card,
   props,
@@ -52,6 +128,8 @@ function TaskItem({
   const isTaskCard = card.typeKey === taskCardTypeKey;
   const completed = isTaskCard && card.fields.core.completed === true;
   const dueLabel = dueDateLabel(card.fields.core.dueDate);
+  const priority = getCardPriorityVisual(card, props.cardTypes);
+  const assignees = getCardAssigneeVisuals(card, props);
   const tagById = new Map(
     props.tagDefinitions.map((t) => [t.id, t])
   );
@@ -107,6 +185,20 @@ function TaskItem({
           ].join(" ")}
         >
           {card.meta.title}
+          {assignees.length ? (
+            <span className="ml-2 inline-flex -space-x-1 align-middle">
+              {assignees.slice(0, 3).map((assignee) => (
+                <span
+                  key={assignee.id}
+                  title={assignee.label}
+                  aria-label={assignee.label}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-surface-raised bg-surface-sunken text-[10px] font-bold uppercase text-text-secondary"
+                >
+                  {assignee.label.slice(0, 1)}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </p>
 
         <div className="flex items-center gap-3 mt-1 min-w-0 overflow-hidden">
@@ -123,10 +215,18 @@ function TaskItem({
             </span>
           )}
 
-          {card.tagIds.length > 0 && (
+          {(priority || card.tagIds.length > 0) && (
             <span className="inline-flex items-center gap-1.5 text-xs text-text-tertiary shrink-0">
               <Tag className="shrink-0" size={11} />
               <span className="inline-flex items-center gap-1">
+                {priority ? (
+                  <span
+                    className="tag-chip"
+                    style={getTagChipStyle(priority.color ?? "slate")}
+                  >
+                    {priority.label}
+                  </span>
+                ) : null}
                 {card.tagIds.slice(0, 2).map((id) => {
                   const tag = tagById.get(id);
                   if (!tag) {

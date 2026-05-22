@@ -76,6 +76,7 @@ function mapCustomFieldsByTypeKey(
     valueType: ScalarFieldType;
     propertyType?: string;
     required?: boolean;
+    defaultValue?: unknown;
     enumValues?: string[];
     enumOptions?: Array<{ label: string; value: string; color?: string }>;
     status: "active" | "deleted";
@@ -141,6 +142,7 @@ export const listForWorkspace = query({
               : field.valueType,
           orderKey: String(index),
           required: field.required,
+          defaultValue: field.defaultValue,
           config: {
             options: normalizePropertyOptions({
               enumOptions: field.enumOptions,
@@ -154,8 +156,10 @@ export const listForWorkspace = query({
           type: resolveCustomPropertyType(field),
           orderKey: String(coreSchema.length + index),
           required: field.required,
+          defaultValue: field.defaultValue,
           config: {
             source: "custom",
+            allowMultiple: field.propertyType === "user" ? true : undefined,
             options: normalizePropertyOptions({
               enumOptions: field.enumOptions,
               enumValues: field.enumValues,
@@ -206,6 +210,7 @@ export const listByBoardType = query({
               : field.valueType,
           orderKey: String(index),
           required: field.required,
+          defaultValue: field.defaultValue,
           config: {
             options: normalizePropertyOptions({
               enumOptions: field.enumOptions,
@@ -219,8 +224,10 @@ export const listByBoardType = query({
           type: resolveCustomPropertyType(field),
           orderKey: String(coreSchema.length + index),
           required: field.required,
+          defaultValue: field.defaultValue,
           config: {
             source: "custom",
+            allowMultiple: field.propertyType === "user" ? true : undefined,
             options: normalizePropertyOptions({
               enumOptions: field.enumOptions,
               enumValues: field.enumValues,

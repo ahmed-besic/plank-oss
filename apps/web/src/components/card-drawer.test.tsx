@@ -682,7 +682,58 @@ describe('CardDrawer', () => {
       }),
     )
 
-    expect(screen.getByRole('option', { name: 'Alex Johnson' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Select people' }))
+
+    expect(screen.getByRole('button', { name: /Alex Johnson/ })).toBeTruthy()
+  })
+
+  it('stores teammate properties as multiple selected users', () => {
+    const coreKanban = builtinClientPluginRegistry.pluginMap.get('core-kanban')
+    if (!coreKanban) {
+      throw new Error('Missing core-kanban plugin')
+    }
+    const onChange = vi.fn()
+
+    render(
+      renderTypedPropertyInput({
+        definition: {
+          key: 'assignees',
+          name: 'Assignees',
+          type: 'user',
+          orderKey: 'a0',
+          config: { allowMultiple: true },
+        },
+        members: [
+          {
+            id: 'member_1',
+            userId: 'user_1',
+            name: 'Alex Johnson',
+            email: 'alex@example.com',
+            role: 'member',
+          },
+          {
+            id: 'member_2',
+            userId: 'user_2',
+            name: 'Sam Lee',
+            email: 'sam@example.com',
+            role: 'member',
+          },
+        ],
+        onChange,
+        pluginPropertyTypeMap: new Map(
+          coreKanban.propertyTypes.map((propertyType) => [
+            propertyType.id,
+            propertyType,
+          ]),
+        ),
+        value: ['user_1'],
+      }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select people' }))
+    fireEvent.click(screen.getByRole('button', { name: /Sam Lee/ }))
+
+    expect(onChange).toHaveBeenCalledWith(['user_1', 'user_2'])
   })
 
   it('renders editable top-row metadata controls and restores drawer width', () => {
