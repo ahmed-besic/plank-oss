@@ -42,8 +42,7 @@
   --shadow-subtle: 0 0 0 1px rgba(255, 255, 255, 0.06);
   --shadow-subtle-2:
     0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 28px rgba(0, 0, 0, 0.3);
-  --shadow-button:
-    0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-button: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-elevated:
     0 18px 54px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   --shadow-glow-violet: 0 0 0 3px rgba(124, 140, 255, 0.18);
@@ -58,6 +57,16 @@
   --animate-slide-in-right: slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-shimmer: shimmer 2s linear infinite;
+  --animate-panel-fade-in: panel-fade-in 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-panel-fade-out: panel-fade-out 0.14s cubic-bezier(0.4, 0, 1, 1);
+  --animate-panel-slide-in-left: panel-slide-in-left 0.22s
+    cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-panel-slide-out-left: panel-slide-out-left 0.18s
+    cubic-bezier(0.4, 0, 1, 1);
+  --animate-panel-slide-in-right: panel-slide-in-right 0.22s
+    cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-panel-slide-out-right: panel-slide-out-right 0.18s
+    cubic-bezier(0.4, 0, 1, 1);
 }
 
 @keyframes fade-in {
@@ -111,6 +120,68 @@
   }
 }
 
+@keyframes panel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panel-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes panel-slide-out-left {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes panel-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes panel-slide-out-right {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -128,7 +199,11 @@ html {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 30% -10%, rgba(124, 140, 255, 0.08), transparent 32rem),
+    radial-gradient(
+      circle at 30% -10%,
+      rgba(124, 140, 255, 0.08),
+      transparent 32rem
+    ),
     var(--color-lavender-mist);
   font-family:
     'Inter',
@@ -198,6 +273,36 @@ select {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.panel-enter-right {
+  animation: var(--animate-panel-slide-in-right);
+  animation-fill-mode: both;
+}
+
+.panel-exit-right {
+  animation: var(--animate-panel-slide-out-right);
+  animation-fill-mode: both;
+}
+
+.panel-enter-left {
+  animation: var(--animate-panel-slide-in-left);
+  animation-fill-mode: both;
+}
+
+.panel-exit-left {
+  animation: var(--animate-panel-slide-out-left);
+  animation-fill-mode: both;
+}
+
+.panel-fade-in {
+  animation: var(--animate-panel-fade-in);
+  animation-fill-mode: both;
+}
+
+.panel-fade-out {
+  animation: var(--animate-panel-fade-out);
+  animation-fill-mode: both;
 }
 
 /* ─── Section card pattern ─── */
@@ -369,7 +474,7 @@ textarea::placeholder {
   line-height: 18px;
 }
 
-.card-drawer-property-control input[type="checkbox"] {
+.card-drawer-property-control input[type='checkbox'] {
   min-height: 14px;
   width: 14px;
   height: 14px;
@@ -400,7 +505,9 @@ textarea::placeholder {
 
 .card-drawer-editor .bn-editor [data-placeholder]::before,
 .card-drawer-editor .bn-editor .bn-inline-content:empty::before,
-.card-drawer-editor .bn-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
+.card-drawer-editor
+  .bn-editor
+  .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after {
   color: rgba(95, 99, 109, 0.66) !important;
 }
 

@@ -25,6 +25,13 @@ const shellPlugin = defineClientPlugin(
   },
 )
 
+const useWorkspaceShellLayoutMock = vi.fn(() => ({
+  isSidebarHidden: false,
+  setIsSidebarHidden: vi.fn(),
+  sidebarWidth: 280,
+  startSidebarResize: vi.fn(),
+}))
+
 vi.mock('@convex-dev/react-query', () => ({
   convexQuery: () => ({
     queryKey: ['mock'],
@@ -94,17 +101,18 @@ vi.mock('../features/collaboration/NotificationCenter', () => ({
 }))
 
 vi.mock('./use-workspace-shell-layout', () => ({
-  useWorkspaceShellLayout: () => ({
-    isSidebarHidden: false,
-    setIsSidebarHidden: vi.fn(),
-    sidebarWidth: 280,
-    startSidebarResize: vi.fn(),
-  }),
+  useWorkspaceShellLayout: () => useWorkspaceShellLayoutMock(),
 }))
 
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  useWorkspaceShellLayoutMock.mockReturnValue({
+    isSidebarHidden: false,
+    setIsSidebarHidden: vi.fn(),
+    sidebarWidth: 280,
+    startSidebarResize: vi.fn(),
+  })
 })
 
 describe('WorkspaceShell', () => {
@@ -146,5 +154,42 @@ describe('WorkspaceShell', () => {
 
     expect(screen.getByText('Shell tools')).toBeTruthy()
     expect(screen.getByText('Workspace content')).toBeTruthy()
+  })
+
+  it('keeps a collapsed desktop rail mounted when the sidebar is hidden', () => {
+    useWorkspaceShellLayoutMock.mockReturnValue({
+      isSidebarHidden: true,
+      setIsSidebarHidden: vi.fn(),
+      sidebarWidth: 280,
+      startSidebarResize: vi.fn(),
+    })
+
+    const overview: WorkspaceOverviewData = {
+      workspace: {
+        id: 'workspace_1',
+        name: 'Acme',
+        slug: 'acme',
+        role: 'owner',
+      },
+      boards: [],
+      boardTypes: [],
+      members: [],
+      pendingInvites: [],
+      extensions: [],
+      viewerUserId: 'user_1',
+    }
+
+    const { container } = render(
+      <WorkspaceShell overview={overview} section="overview">
+        <main>Workspace content</main>
+      </WorkspaceShell>,
+    )
+
+    expect(screen.getByLabelText('Show sidebar')).toBeTruthy()
+    expect(
+      container
+        .querySelector('[aria-label="Resize sidebar"]')
+        ?.getAttribute('aria-hidden'),
+    ).toBe('true')
   })
 })

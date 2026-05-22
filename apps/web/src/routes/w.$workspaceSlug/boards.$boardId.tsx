@@ -80,6 +80,7 @@ export const Route = createRoute('/w/$workspaceSlug/boards/$boardId')({
 type BoardUtilityPage = 'none' | 'extensions' | 'activity'
 const BOARD_PRESENCE_ACTIVE_MS = 90_000
 const BOARD_PRESENCE_HEARTBEAT_MS = 45_000
+const DRAWER_EXIT_MS = 180
 
 function toBoardViewConfigScalars(values: Record<string, unknown>) {
   const scalars: Record<string, BoardViewConfigScalar> = {}
@@ -143,10 +144,16 @@ function BoardRoute() {
     viewId: string
     label: string
   } | null>(null)
+  const [presentedCard, setPresentedCard] = useState<
+    BoardPageData['cards'][number] | null
+  >(null)
+  const [isDrawerClosing, setIsDrawerClosing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [utilityPage, setUtilityPage] = useState<BoardUtilityPage>('none')
   const [extensionCategory, setExtensionCategory] =
     useState<ExtensionCategory>('all')
+  const drawerCloseTimeoutRef = useRef<number | null>(null)
+  const closingCardIdRef = useRef<string | null>(null)
   const activityVisible = utilityPage === 'activity'
   const overviewOptions = convexQuery(api.workspaces.getOverview, {
     workspaceSlug,
@@ -460,11 +467,53 @@ function BoardRoute() {
   )
 
   const activeCard = boardData?.cards.find((card) => card.id === search.card)
+  const displayedCard = activeCard ?? presentedCard
   const activeCardType = boardData?.cardTypes.find(
-    (cardType) => cardType.id === activeCard?.typeKey,
+    (cardType) => cardType.id === displayedCard?.typeKey,
   )
   useEffect(() => {
-    if (!boardData || !search.card || activeCard) {
+    return () => {
+      if (drawerCloseTimeoutRef.current !== null) {
+        window.clearTimeout(drawerCloseTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeCard) {
+      if (
+        isDrawerClosing &&
+        closingCardIdRef.current &&
+        activeCard.id === closingCardIdRef.current
+      ) {
+        return
+      }
+      if (drawerCloseTimeoutRef.current !== null) {
+        window.clearTimeout(drawerCloseTimeoutRef.current)
+        drawerCloseTimeoutRef.current = null
+      }
+      setPresentedCard(activeCard)
+      setIsDrawerClosing(false)
+      closingCardIdRef.current = null
+      return
+    }
+
+    if (!search.card && !isDrawerClosing) {
+      setPresentedCard(null)
+    }
+  }, [activeCard, isDrawerClosing, search.card])
+
+  useEffect(() => {
+    if (search.card || !isDrawerClosing) {
+      return
+    }
+    setPresentedCard(null)
+    setIsDrawerClosing(false)
+    closingCardIdRef.current = null
+  }, [isDrawerClosing, search.card])
+
+  useEffect(() => {
+    if (!boardData || !search.card || activeCard || isDrawerClosing) {
       return
     }
     updateSearch((current: any) => ({
@@ -473,7 +522,7 @@ function BoardRoute() {
       commentId: undefined,
       focus: undefined,
     }))
-  }, [activeCard, boardData, search.card])
+  }, [activeCard, boardData, isDrawerClosing, search.card])
   const persistedActiveCardId = isPersistedCardId(activeCard?.id)
     ? activeCard.id
     : null
@@ -493,6 +542,26 @@ function BoardRoute() {
   const activeCardSubTasks = subTasksQuery.data as
     | BoardPageData['cards']
     | undefined
+
+  const requestDrawerClose = () => {
+    if (isDrawerClosing) {
+      return
+    }
+    closingCardIdRef.current = displayedCard?.id ?? null
+    setIsDrawerClosing(true)
+    if (drawerCloseTimeoutRef.current !== null) {
+      window.clearTimeout(drawerCloseTimeoutRef.current)
+    }
+    drawerCloseTimeoutRef.current = window.setTimeout(() => {
+      drawerCloseTimeoutRef.current = null
+      updateSearch((current: any) => ({
+        ...current,
+        card: undefined,
+        commentId: undefined,
+        focus: undefined,
+      }))
+    }, DRAWER_EXIT_MS)
+  }
 
   useEffect(() => {
     if (!boardData || !overviewBoard || !hydrated || !auth.isAuthenticated) {
@@ -1519,7 +1588,7 @@ function BoardRoute() {
         />
       ) : null}
 
-      {activeCard && boardData ? (
+      {displayedCard && boardData ? (
         <CardDrawer
           activePluginPropertyTypes={activePluginPropertyTypes}
           activePluginSlots={activePluginSlots}
@@ -1529,8 +1598,9 @@ function BoardRoute() {
           tagDefinitions={boardData.tagDefinitions}
           members={boardData.members}
           viewerUserId={boardData.viewerUserId}
-          card={activeCard}
-          commentsOpen={search.focus === 'comments'}
+          card={displayedCard}
+          isClosing={isDrawerClosing}
+          commentsOpen={search.focus === 'comments' && !isDrawerClosing}
           focusTarget={search.focus}
           highlightedCommentId={search.commentId}
           renderCollaborationPanel={(panelProps) => (
@@ -1539,11 +1609,15 @@ function BoardRoute() {
           workspaceSlug={workspaceSlug}
           onAddProperty={actions.addProperty}
           onDeleteCard={async () => {
-            await actions.deleteCard(activeCard.id)
+            await actions.deleteCard(displayedCard.id)
           }}
           onDeleteProperty={actions.deleteProperty}
           onCreateSubTask={async (title: string) =>
-            actions.createSubTask(activeCard.id, title, activeCard.typeKey)
+            actions.createSubTask(
+              displayedCard.id,
+              title,
+              displayedCard.typeKey,
+            )
           }
           onOpenCard={(cardId: string, nextBoardId?: string) => {
             if (!nextBoardId || nextBoardId === boardId) {
@@ -1587,17 +1661,10 @@ function BoardRoute() {
           onResolveCardFileUrl={actions.resolveCardFileUrl}
           onSaveDefaultProperties={saveBoardDefaultProperties}
           subTasks={activeCardSubTasks}
-          onClose={() =>
-            updateSearch((current: any) => ({
-              ...current,
-              card: undefined,
-              commentId: undefined,
-              focus: undefined,
-            }))
-          }
+          onRequestClose={requestDrawerClose}
           onSave={async (payload) => {
             return await actions.updateCard({
-              cardId: activeCard.id,
+              cardId: displayedCard.id,
               title: payload.title,
               body: payload.body,
               baseUpdatedAt: payload.baseUpdatedAt,

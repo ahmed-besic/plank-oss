@@ -24,6 +24,7 @@ export type CardDrawerProps = {
   viewerUserId?: BoardPageData['viewerUserId']
   card: BoardPageData['cards'][number]
   workspaceSlug: string
+  isClosing?: boolean
   commentsOpen?: boolean
   highlightedCommentId?: string
   focusTarget?: 'description' | 'comments'
@@ -58,7 +59,7 @@ export type CardDrawerProps = {
   onToggleComments?: () => void
   onCloseComments?: () => void
   subTasks?: BoardPageData['cards']
-  onClose: () => void
+  onRequestClose: () => void
   onSave: (payload: {
     title: string
     body: BoardPageData['cards'][number]['body']

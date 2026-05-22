@@ -69,7 +69,7 @@ export function useCardDrawerState({
   cardType,
   card,
   workspaceSlug,
-  onClose,
+  onRequestClose,
   onRequestCardUploadUrl,
   onResolveCardFileUrl,
   onSave,
@@ -80,7 +80,7 @@ export function useCardDrawerState({
   | 'cardType'
   | 'card'
   | 'workspaceSlug'
-  | 'onClose'
+  | 'onRequestClose'
   | 'onRequestCardUploadUrl'
   | 'onResolveCardFileUrl'
   | 'onSave'
@@ -260,11 +260,17 @@ export function useCardDrawerState({
     onSuccess: async (result) => {
       markDirty()
       setSelectedTagIds((current) => [...current, String(result.tagId)])
-      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: boardPageOptions.queryKey,
+      })
     },
   })
   const updateTag = useMutation({
-    mutationFn: async (payload: { color?: string; name?: string; tagId: string }) =>
+    mutationFn: async (payload: {
+      color?: string
+      name?: string
+      tagId: string
+    }) =>
       convexClient.mutation(api.tags.updateTag, {
         workspaceSlug,
         tagId: payload.tagId as never,
@@ -272,7 +278,9 @@ export function useCardDrawerState({
         color: payload.color,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: boardPageOptions.queryKey,
+      })
     },
   })
   const deleteTag = useMutation({
@@ -286,7 +294,9 @@ export function useCardDrawerState({
       setSelectedTagIds((current) =>
         current.filter((currentTagId) => currentTagId !== tagId),
       )
-      await queryClient.invalidateQueries({ queryKey: boardPageOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: boardPageOptions.queryKey,
+      })
     },
   })
 
@@ -377,7 +387,7 @@ export function useCardDrawerState({
       baseUpdatedAt,
     }),
     isMountedRef,
-    onClose,
+    onRequestClose,
     saveSnapshot: async (snapshot) =>
       await onSave({
         title: snapshot.title,
@@ -489,7 +499,11 @@ export function useCardDrawerState({
         }))
       : []
     setEditingSelectOptionsKey(definition.key)
-    setSelectOptionsDraft(options.length ? options : [{ label: 'Option 1', value: 'option_1', color: 'violet' }])
+    setSelectOptionsDraft(
+      options.length
+        ? options
+        : [{ label: 'Option 1', value: 'option_1', color: 'violet' }],
+    )
   }
 
   const resetPropertyComposer = () => {

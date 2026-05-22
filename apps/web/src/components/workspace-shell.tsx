@@ -30,6 +30,8 @@ import {
 } from '../lib/keyboard-shortcuts'
 import { useWorkspaceShellLayout } from './use-workspace-shell-layout'
 
+const COLLAPSED_SIDEBAR_WIDTH = 56
+
 export function WorkspaceShell({
   activeBoardId,
   children,
@@ -443,12 +445,25 @@ export function WorkspaceShell({
   return (
     <div className="flex min-h-screen bg-lavender-mist">
       {/* ─── Left sidebar ─── */}
-      {isSidebarHidden ? (
-        <div className="hidden w-14 shrink-0 border-r border-border-subtle bg-cloud-white lg:block">
+      <div
+        className="relative hidden shrink-0 overflow-hidden border-r border-border-subtle bg-cloud-white transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] lg:block"
+        style={{
+          width: isSidebarHidden ? COLLAPSED_SIDEBAR_WIDTH : sidebarWidth,
+        }}
+      >
+        <div
+          aria-hidden={!isSidebarHidden}
+          className={cn(
+            'absolute inset-0',
+            isSidebarHidden
+              ? 'panel-fade-in pointer-events-auto'
+              : 'panel-fade-out pointer-events-none',
+          )}
+        >
           <div className="flex h-14 items-center justify-center border-b border-border-subtle">
             <button
               aria-label="Show sidebar"
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
               onClick={() => setIsSidebarHidden(false)}
               type="button"
             >
@@ -456,313 +471,325 @@ export function WorkspaceShell({
             </button>
           </div>
         </div>
-      ) : null}
-      <aside
-        className={cn(
-          'relative hidden shrink-0 border-r border-border-subtle bg-cloud-white lg:flex lg:flex-col',
-          isSidebarHidden ? 'lg:hidden' : '',
-        )}
-        style={{ width: sidebarWidth }}
-      >
-        {/* Workspace switcher */}
-        <div
-          className="relative flex h-14 items-center border-b border-border-subtle px-3"
-          ref={workspaceMenuRef}
+
+        <aside
+          aria-hidden={isSidebarHidden}
+          className={cn(
+            'absolute inset-0 flex flex-col',
+            isSidebarHidden
+              ? 'panel-exit-left pointer-events-none'
+              : 'panel-enter-left pointer-events-auto',
+          )}
         >
-          <div className="flex w-full items-center gap-1">
-            <button
-              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
-              onClick={() => setIsWorkspaceMenuOpen((open) => !open)}
-              type="button"
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet to-accent-teal text-sm font-bold text-white shadow-sm">
-                {overview.workspace.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-text-primary">
-                  {overview.workspace.name}
-                </span>
-                <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
-                  <CircleDot className="h-2 w-2 text-success-green" />
-                  {overview.workspace.role}
-                </span>
-              </div>
-              <ChevronDown
-                className={cn(
-                  'h-4 w-4 text-text-tertiary transition-transform duration-200',
-                  isWorkspaceMenuOpen ? 'rotate-180' : '',
-                )}
-              />
-            </button>
-            <button
-              aria-label="Hide sidebar"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
-              onClick={() => setIsSidebarHidden(true)}
-              type="button"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          </div>
-
-          {isWorkspaceMenuOpen ? (
-            <div className="absolute left-3 top-full z-30 mt-1 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
-              {workspaceItems.map((workspace) => {
-                const isCurrentWorkspace =
-                  workspace.slug === overview.workspace.slug
-
-                return (
-                  <button
-                    key={workspace.id}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150',
-                      isCurrentWorkspace
-                        ? 'bg-electric-violet/8 text-text-primary'
-                        : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
-                    )}
-                    onClick={() => switchWorkspace(workspace.slug)}
-                    type="button"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet/20 to-accent-teal/20 text-sm font-bold text-electric-violet">
-                      {workspace.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
-                        {workspace.name}
-                      </span>
-                      <span className="text-xs text-text-tertiary">
-                        {workspace.role}
-                      </span>
-                    </div>
-                    {isCurrentWorkspace ? (
-                      <span className="rounded-md bg-electric-violet/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-electric-violet">
-                        Active
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
-              <div className="my-1 h-px bg-border-subtle" />
+          {/* Workspace switcher */}
+          <div
+            className="relative flex h-14 items-center border-b border-border-subtle px-3"
+            ref={workspaceMenuRef}
+          >
+            <div className="flex w-full items-center gap-1">
               <button
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary transition-all duration-150 hover:bg-surface-sunken hover:text-text-primary"
-                disabled={createWorkspace.isPending}
-                onClick={requestCreateWorkspace}
+                className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
+                onClick={() => setIsWorkspaceMenuOpen((open) => !open)}
                 type="button"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-electric-violet">
-                  <Plus className="h-4 w-4" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet to-accent-teal text-sm font-bold text-white shadow-sm">
+                  {overview.workspace.name.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-sm font-medium">
-                  {createWorkspace.isPending
-                    ? 'Creating workspace…'
-                    : 'Create workspace'}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-text-primary">
+                    {overview.workspace.name}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                    <CircleDot className="h-2 w-2 text-success-green" />
+                    {overview.workspace.role}
+                  </span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-4 w-4 text-text-tertiary transition-transform duration-200',
+                    isWorkspaceMenuOpen ? 'rotate-180' : '',
+                  )}
+                />
               </button>
-            </div>
-          ) : null}
-        </div>
-
-        <NotificationCenter overview={overview} />
-
-        {/* Section navigation */}
-        <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-          {/* Boards list */}
-          <div className="mb-1 flex items-center justify-between px-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-              Boards
-            </p>
-            <div className="relative" ref={createBoardMenuRef}>
               <button
-                aria-label="Create board"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
-                onClick={() => setIsCreateBoardMenuOpen((open) => !open)}
+                aria-label="Hide sidebar"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+                onClick={() => setIsSidebarHidden(true)}
                 type="button"
               >
-                <Plus className="h-4 w-4" />
+                <PanelLeftClose className="h-4 w-4" />
               </button>
-              {isCreateBoardMenuOpen ? (
-                <div
-                  className="absolute left-0 top-8 z-40 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-3 text-sm shadow-elevated"
-                  onPointerDown={(event) => event.stopPropagation()}
-                >
-                  <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                    New board
-                  </p>
-                  <label className="mt-3 block text-xs font-semibold text-text-secondary">
-                    Board type
-                  </label>
-                  <select
-                    className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
-                    disabled={overview.boardTypes.length === 0}
-                    onChange={(event) => setNewBoardTypeId(event.target.value)}
-                    value={newBoardTypeId}
-                  >
-                    {overview.boardTypes.map((boardType) => (
-                      <option key={boardType.id} value={boardType.id}>
-                        {boardType.name}
-                      </option>
-                    ))}
-                  </select>
-                  <label className="mt-3 block text-xs font-semibold text-text-secondary">
-                    Name
-                  </label>
-                  <input
-                    className="mt-1 w-full rounded-xl border border-border-subtle bg-cloud-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
-                    onChange={(event) => setNewBoardName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        requestCreateBoard()
-                      }
-                    }}
-                    value={newBoardName}
-                  />
-                  <button
-                    className="mt-3 flex w-full items-center justify-center rounded-xl bg-electric-violet px-3 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={
-                      !newBoardName.trim() ||
-                      !selectedNewBoardType ||
-                      createBoard.isPending
-                    }
-                    onClick={requestCreateBoard}
-                    type="button"
-                  >
-                    {createBoard.isPending ? 'Creating…' : 'Create board'}
-                  </button>
-                </div>
-              ) : null}
             </div>
-          </div>
-          {overview.boards.length > 0 ? (
-            <>
-              {overview.boards.map((board) => {
-                const boardSeenAt = board.viewerSeenAt ?? 0
-                const latestExternalAt =
-                  board.latestExternalChange?.createdAt ?? 0
-                const hasUnreadExternal =
-                  latestExternalAt > boardSeenAt &&
-                  board.latestExternalChange?.actorId !== overview.viewerUserId
-                return (
-                  <div
-                    key={board.id}
-                    className={cn(
-                      'group relative flex items-center rounded-xl transition-all duration-200',
-                      activeBoardId === board.id
-                        ? 'bg-electric-violet/10 text-electric-violet'
-                        : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
-                    )}
-                  >
-                    <Link
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium"
-                      onFocus={() => prefetchBoard(board.id)}
-                      onMouseEnter={() => prefetchBoard(board.id)}
-                      params={{
-                        boardId: board.id,
-                        workspaceSlug: overview.workspace.slug,
-                      }}
-                      to="/w/$workspaceSlug/boards/$boardId"
-                    >
-                      <SquareKanban className="h-[18px] w-[18px] shrink-0" />
-                      <span className="truncate">{board.name}</span>
-                      {hasUnreadExternal ? (
-                        <span
-                          aria-label="Unread external changes"
-                          className="ml-auto h-2 w-2 shrink-0 rounded-full bg-sky-500"
-                          title="Unread external changes"
-                        />
-                      ) : null}
-                    </Link>
+
+            {isWorkspaceMenuOpen ? (
+              <div className="absolute left-3 top-full z-30 mt-1 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
+                {workspaceItems.map((workspace) => {
+                  const isCurrentWorkspace =
+                    workspace.slug === overview.workspace.slug
+
+                  return (
                     <button
-                      aria-label={`Options for ${board.name}`}
+                      key={workspace.id}
                       className={cn(
-                        'mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-cloud-white hover:text-text-primary',
-                        openBoardMenuId === board.id
-                          ? 'opacity-100'
-                          : 'opacity-0 group-hover:opacity-100',
+                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150',
+                        isCurrentWorkspace
+                          ? 'bg-electric-violet/8 text-text-primary'
+                          : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
                       )}
-                      onClick={() =>
-                        setOpenBoardMenuId((current) =>
-                          current === board.id ? null : board.id,
-                        )
-                      }
-                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => switchWorkspace(workspace.slug)}
                       type="button"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                    {openBoardMenuId === board.id ? (
-                      <div
-                        className="absolute right-1 top-9 z-40 w-44 rounded-2xl border border-border-subtle bg-cloud-white p-1.5 text-sm shadow-elevated"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        ref={boardMenuRef}
-                      >
-                        <button
-                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-text-secondary transition hover:bg-surface-sunken hover:text-text-primary"
-                          onClick={() =>
-                            requestRenameBoard(board.id, board.name)
-                          }
-                          type="button"
-                        >
-                          <Pencil className="h-4 w-4" />
-                          Rename
-                        </button>
-                        <button
-                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 transition hover:bg-red-50"
-                          onClick={() =>
-                            requestDeleteBoard(board.id, board.name)
-                          }
-                          type="button"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete board
-                        </button>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet/20 to-accent-teal/20 text-sm font-bold text-electric-violet">
+                        {workspace.name.charAt(0).toUpperCase()}
                       </div>
-                    ) : null}
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {workspace.name}
+                        </span>
+                        <span className="text-xs text-text-tertiary">
+                          {workspace.role}
+                        </span>
+                      </div>
+                      {isCurrentWorkspace ? (
+                        <span className="rounded-md bg-electric-violet/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-electric-violet">
+                          Active
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+                <div className="my-1 h-px bg-border-subtle" />
+                <button
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary transition-all duration-150 hover:bg-surface-sunken hover:text-text-primary"
+                  disabled={createWorkspace.isPending}
+                  onClick={requestCreateWorkspace}
+                  type="button"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-electric-violet">
+                    <Plus className="h-4 w-4" />
                   </div>
-                )
-              })}
-            </>
-          ) : (
-            <div className="rounded-xl border border-dashed border-border-subtle px-3 py-5 text-center text-sm text-text-tertiary">
-              No boards yet.
-            </div>
-          )}
-          {sidebarNavigationExtensions.length ? (
-            <div className="mt-5 space-y-1 border-t border-border-subtle pt-4">
-              {sidebarNavigationExtensions.map(({ extension, pluginId }) => (
-                <div key={`${pluginId}:${extension.id}`}>
-                  {extension.render({
-                    slot: 'shell.sidebar.navigation',
-                    pluginId,
-                    workspaceSlug: overview.workspace.slug,
-                  })}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </nav>
+                  <span className="text-sm font-medium">
+                    {createWorkspace.isPending
+                      ? 'Creating workspace…'
+                      : 'Create workspace'}
+                  </span>
+                </button>
+              </div>
+            ) : null}
+          </div>
 
-        {/* Bottom actions */}
-        <div className="border-t border-border-subtle px-3 py-3">
-          <Link
-            className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-              section === 'settings'
-                ? 'bg-electric-violet/10 text-electric-violet'
-                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+          <NotificationCenter overview={overview} />
+
+          {/* Section navigation */}
+          <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
+            {/* Boards list */}
+            <div className="mb-1 flex items-center justify-between px-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
+                Boards
+              </p>
+              <div className="relative" ref={createBoardMenuRef}>
+                <button
+                  aria-label="Create board"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+                  onClick={() => setIsCreateBoardMenuOpen((open) => !open)}
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+                {isCreateBoardMenuOpen ? (
+                  <div
+                    className="absolute left-0 top-8 z-40 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-3 text-sm shadow-elevated"
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                      New board
+                    </p>
+                    <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                      Board type
+                    </label>
+                    <select
+                      className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                      disabled={overview.boardTypes.length === 0}
+                      onChange={(event) =>
+                        setNewBoardTypeId(event.target.value)
+                      }
+                      value={newBoardTypeId}
+                    >
+                      {overview.boardTypes.map((boardType) => (
+                        <option key={boardType.id} value={boardType.id}>
+                          {boardType.name}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                      Name
+                    </label>
+                    <input
+                      className="mt-1 w-full rounded-xl border border-border-subtle bg-cloud-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                      onChange={(event) => setNewBoardName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          requestCreateBoard()
+                        }
+                      }}
+                      value={newBoardName}
+                    />
+                    <button
+                      className="mt-3 flex w-full items-center justify-center rounded-xl bg-electric-violet px-3 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={
+                        !newBoardName.trim() ||
+                        !selectedNewBoardType ||
+                        createBoard.isPending
+                      }
+                      onClick={requestCreateBoard}
+                      type="button"
+                    >
+                      {createBoard.isPending ? 'Creating…' : 'Create board'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {overview.boards.length > 0 ? (
+              <>
+                {overview.boards.map((board) => {
+                  const boardSeenAt = board.viewerSeenAt ?? 0
+                  const latestExternalAt =
+                    board.latestExternalChange?.createdAt ?? 0
+                  const hasUnreadExternal =
+                    latestExternalAt > boardSeenAt &&
+                    board.latestExternalChange?.actorId !==
+                      overview.viewerUserId
+                  return (
+                    <div
+                      key={board.id}
+                      className={cn(
+                        'group relative flex items-center rounded-xl transition-all duration-200',
+                        activeBoardId === board.id
+                          ? 'bg-electric-violet/10 text-electric-violet'
+                          : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+                      )}
+                    >
+                      <Link
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium"
+                        onFocus={() => prefetchBoard(board.id)}
+                        onMouseEnter={() => prefetchBoard(board.id)}
+                        params={{
+                          boardId: board.id,
+                          workspaceSlug: overview.workspace.slug,
+                        }}
+                        to="/w/$workspaceSlug/boards/$boardId"
+                      >
+                        <SquareKanban className="h-[18px] w-[18px] shrink-0" />
+                        <span className="truncate">{board.name}</span>
+                        {hasUnreadExternal ? (
+                          <span
+                            aria-label="Unread external changes"
+                            className="ml-auto h-2 w-2 shrink-0 rounded-full bg-sky-500"
+                            title="Unread external changes"
+                          />
+                        ) : null}
+                      </Link>
+                      <button
+                        aria-label={`Options for ${board.name}`}
+                        className={cn(
+                          'mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-cloud-white hover:text-text-primary',
+                          openBoardMenuId === board.id
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100',
+                        )}
+                        onClick={() =>
+                          setOpenBoardMenuId((current) =>
+                            current === board.id ? null : board.id,
+                          )
+                        }
+                        onPointerDown={(event) => event.stopPropagation()}
+                        type="button"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                      {openBoardMenuId === board.id ? (
+                        <div
+                          className="absolute right-1 top-9 z-40 w-44 rounded-2xl border border-border-subtle bg-cloud-white p-1.5 text-sm shadow-elevated"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          ref={boardMenuRef}
+                        >
+                          <button
+                            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-text-secondary transition hover:bg-surface-sunken hover:text-text-primary"
+                            onClick={() =>
+                              requestRenameBoard(board.id, board.name)
+                            }
+                            type="button"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Rename
+                          </button>
+                          <button
+                            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 transition hover:bg-red-50"
+                            onClick={() =>
+                              requestDeleteBoard(board.id, board.name)
+                            }
+                            type="button"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete board
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border-subtle px-3 py-5 text-center text-sm text-text-tertiary">
+                No boards yet.
+              </div>
             )}
-            params={{ workspaceSlug: overview.workspace.slug }}
-            to="/w/$workspaceSlug/settings"
-          >
-            <Settings2 className="h-[18px] w-[18px]" />
-            Settings
-          </Link>
-        </div>
-        <button
-          aria-label="Resize sidebar"
-          className="absolute -right-1 top-0 h-full w-2 cursor-col-resize touch-none bg-transparent transition hover:bg-electric-violet/20"
-          onPointerDown={startSidebarResize}
-          type="button"
-        />
-      </aside>
+            {sidebarNavigationExtensions.length ? (
+              <div className="mt-5 space-y-1 border-t border-border-subtle pt-4">
+                {sidebarNavigationExtensions.map(({ extension, pluginId }) => (
+                  <div key={`${pluginId}:${extension.id}`}>
+                    {extension.render({
+                      slot: 'shell.sidebar.navigation',
+                      pluginId,
+                      workspaceSlug: overview.workspace.slug,
+                    })}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </nav>
+
+          {/* Bottom actions */}
+          <div className="border-t border-border-subtle px-3 py-3">
+            <Link
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                section === 'settings'
+                  ? 'bg-electric-violet/10 text-electric-violet'
+                  : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+              )}
+              params={{ workspaceSlug: overview.workspace.slug }}
+              to="/w/$workspaceSlug/settings"
+            >
+              <Settings2 className="h-[18px] w-[18px]" />
+              Settings
+            </Link>
+          </div>
+          <button
+            aria-hidden={isSidebarHidden}
+            aria-label="Resize sidebar"
+            className={cn(
+              'absolute -right-1 top-0 h-full w-2 touch-none bg-transparent transition hover:bg-electric-violet/20',
+              isSidebarHidden
+                ? 'pointer-events-none cursor-default opacity-0'
+                : 'cursor-col-resize opacity-100',
+            )}
+            onPointerDown={isSidebarHidden ? undefined : startSidebarResize}
+            type="button"
+          />
+        </aside>
+      </div>
 
       {/* ─── Main content ─── */}
       <div className="flex min-w-0 flex-1 flex-col">

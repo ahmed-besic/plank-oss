@@ -34,6 +34,7 @@ import {
   Button,
   Input,
   TAG_COLOR_PALETTE,
+  cn,
   getTagChipStyle,
   getTagDotStyle,
 } from '@plank/ui'
@@ -46,6 +47,8 @@ import type { CardDrawerProps } from './card-drawer-types'
 import { useKeyboardShortcuts } from '../lib/keyboard-shortcuts'
 import { useCardDrawerLayout } from './use-card-drawer-layout'
 import { useCardDrawerState } from './use-card-drawer-state'
+
+const COMMENTS_EXIT_MS = 180
 
 function toDateInputValue(value: unknown) {
   if (typeof value === 'string') {
@@ -206,6 +209,7 @@ function GenericCardDrawer({
   viewerUserId,
   card,
   workspaceSlug,
+  isClosing = false,
   commentsOpen = false,
   highlightedCommentId,
   focusTarget,
@@ -220,7 +224,7 @@ function GenericCardDrawer({
   onOpenCard,
   onToggleComments,
   onCloseComments,
-  onClose,
+  onRequestClose,
   onSave,
 }: CardDrawerProps) {
   const { drawerWidth, startDrawerResize } = useCardDrawerLayout()
@@ -236,10 +240,13 @@ function GenericCardDrawer({
   const [editingTagId, setEditingTagId] = useState<string | null>(null)
   const [editingTagName, setEditingTagName] = useState('')
   const [tagColorPickerId, setTagColorPickerId] = useState<string | null>(null)
+  const [isCommentsPresent, setIsCommentsPresent] = useState(commentsOpen)
+  const [isCommentsExiting, setIsCommentsExiting] = useState(false)
   const tagColorPickerRef = useRef<HTMLDivElement>(null)
   const tagColorTriggerRefs = useRef<Record<string, HTMLButtonElement | null>>(
     {},
   )
+  const commentsTimeoutRef = useRef<number | null>(null)
   const {
     addRelation,
     blockNoteEditor,
@@ -294,7 +301,7 @@ function GenericCardDrawer({
     boardType,
     card,
     cardType,
-    onClose,
+    onRequestClose,
     onRequestCardUploadUrl,
     onResolveCardFileUrl,
     onSave,
@@ -414,6 +421,40 @@ function GenericCardDrawer({
       resetPropertyComposer()
     }
   }, [activePopover, isAddingProperty, resetPropertyComposer])
+
+  useEffect(() => {
+    return () => {
+      if (commentsTimeoutRef.current !== null) {
+        window.clearTimeout(commentsTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const commentsVisible = commentsOpen && !isClosing
+    if (commentsTimeoutRef.current !== null) {
+      window.clearTimeout(commentsTimeoutRef.current)
+      commentsTimeoutRef.current = null
+    }
+
+    if (commentsVisible) {
+      setIsCommentsPresent(true)
+      setIsCommentsExiting(false)
+      return
+    }
+
+    if (!isCommentsPresent) {
+      setIsCommentsExiting(false)
+      return
+    }
+
+    setIsCommentsExiting(true)
+    commentsTimeoutRef.current = window.setTimeout(() => {
+      setIsCommentsPresent(false)
+      setIsCommentsExiting(false)
+      commentsTimeoutRef.current = null
+    }, COMMENTS_EXIT_MS)
+  }, [commentsOpen, isClosing, isCommentsPresent])
 
   useEffect(() => {
     const element = titleTextareaRef.current
@@ -618,16 +659,24 @@ function GenericCardDrawer({
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-zinc-900/20 backdrop-blur-sm"
+        className={cn(
+          'fixed inset-0 z-40 bg-zinc-900/20 backdrop-blur-sm',
+          isClosing ? 'panel-fade-out' : 'panel-fade-in',
+        )}
         onClick={() => {
           void closeAndSave()
         }}
       />
 
-      {commentsOpen ? (
+      {isCommentsPresent ? (
         <>
           <div
-            className="fixed bottom-2 top-2 z-50 hidden overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl md:block"
+            className={cn(
+              'fixed bottom-2 top-2 z-50 hidden overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl md:block',
+              isCommentsExiting
+                ? 'panel-exit-right pointer-events-none'
+                : 'panel-enter-right',
+            )}
             style={{
               right: `calc(0.5rem + ${drawerWidth}px + 0.75rem)`,
               width: `${commentPanelWidth}px`,
@@ -638,7 +687,7 @@ function GenericCardDrawer({
               boardId: card.boardId,
               cardId: persistedCardId,
               highlightedCommentId,
-              isOpen: commentsOpen,
+              isOpen: commentsOpen && !isClosing,
               members,
               onClose: onCloseComments,
               standalone: true,
@@ -646,12 +695,19 @@ function GenericCardDrawer({
               workspaceSlug,
             })}
           </div>
-          <div className="fixed inset-2 z-[60] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl md:hidden">
+          <div
+            className={cn(
+              'fixed inset-2 z-[60] overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl md:hidden',
+              isCommentsExiting
+                ? 'panel-exit-right pointer-events-none'
+                : 'panel-enter-right',
+            )}
+          >
             {renderCollaborationPanel?.({
               boardId: card.boardId,
               cardId: persistedCardId,
               highlightedCommentId,
-              isOpen: commentsOpen,
+              isOpen: commentsOpen && !isClosing,
               members,
               onClose: onCloseComments,
               standalone: true,
@@ -663,7 +719,12 @@ function GenericCardDrawer({
       ) : null}
 
       <div
-        className="fixed bottom-2 right-2 top-2 z-50 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl"
+        className={cn(
+          'fixed bottom-2 right-2 top-2 z-50 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-2xl',
+          isClosing
+            ? 'panel-exit-right pointer-events-none'
+            : 'panel-enter-right',
+        )}
         style={{
           width: `${drawerWidth}px`,
           maxWidth: 'calc(100vw - 1rem)',
@@ -691,7 +752,7 @@ function GenericCardDrawer({
               className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600"
               onClick={() =>
                 void onDeleteCard().then(() => {
-                  onClose()
+                  onRequestClose()
                 })
               }
               type="button"

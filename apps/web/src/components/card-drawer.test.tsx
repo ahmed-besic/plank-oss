@@ -1,11 +1,15 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { builtinClientPluginRegistry } from '@plank/plugin-runtime/client'
-import { createClientPluginRegistry, getEnabledUiExtensions } from '@plank/plugin-runtime'
+import {
+  createClientPluginRegistry,
+  getEnabledUiExtensions,
+} from '@plank/plugin-runtime'
 import { defineClientPlugin } from '@plank/plugin-sdk'
 import { CardDrawer } from './card-drawer'
+import type { CardDrawerProps } from './card-drawer-types'
 import { renderTypedPropertyInput } from './card-drawer-property-input'
 
 const useQuerySpy = vi.fn()
@@ -201,7 +205,7 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )
@@ -290,12 +294,110 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )
 
-    expect(screen.getAllByText('Collaboration panel for card_1')).toHaveLength(2)
+    expect(screen.getAllByText('Collaboration panel for card_1')).toHaveLength(
+      2,
+    )
+  })
+
+  it('keeps comment panels mounted until their exit animation finishes', () => {
+    vi.useFakeTimers()
+    const coreKanban = builtinClientPluginRegistry.pluginMap.get('core-kanban')
+    if (!coreKanban) {
+      throw new Error('Missing core-kanban plugin')
+    }
+
+    const props: CardDrawerProps = {
+      activePluginPropertyTypes: coreKanban.propertyTypes,
+      activePluginSlots: [],
+      boardType: {
+        id: 'boardType_1',
+        workspaceId: 'workspace_1',
+        key: 'task-tracking',
+        name: 'Task tracking',
+        lifecycleConfig: {
+          statuses: [
+            {
+              key: 'backlog',
+              label: 'Backlog',
+              category: 'todo',
+              orderKey: 'a0',
+            },
+          ],
+          initialStatusKey: 'backlog',
+        },
+        defaultViewIds: ['core-kanban:board'],
+        defaultCardTypeKey: 'core.todo',
+      },
+      cardType: {
+        id: 'core.todo',
+        workspaceId: 'workspace_1',
+        key: 'core.todo',
+        name: 'Todo',
+        schemaVersion: 1,
+        propertiesSchema: [],
+        defaultTagIds: [],
+      },
+      tagDefinitions: [],
+      card: {
+        id: 'card_1',
+        boardId: 'board_1',
+        typeKey: 'core.todo',
+        typeSchemaVersion: 1,
+        cardTypeId: 'core.todo',
+        title: 'Card',
+        meta: {
+          title: 'Card',
+        },
+        statusKey: 'backlog',
+        orderKey: 'a0',
+        body: {
+          type: 'blocknote',
+          content: [{ id: 'paragraph-1', type: 'paragraph' }],
+        },
+        properties: {},
+        fields: {
+          core: {},
+          custom: {},
+        },
+        relations: [],
+        tagIds: [],
+        createdAt: 1,
+        updatedAt: 1,
+        createdBy: 'user_1',
+      },
+      members: [],
+      renderCollaborationPanel: () => <div>Animated comments</div>,
+      workspaceSlug: 'acme',
+      onAddProperty: async () => {},
+      onDeleteCard: async () => {},
+      onDeleteProperty: async () => {},
+      onUpdatePropertyOptions: async () => {},
+      onRequestCardUploadUrl: async () => 'https://example.com',
+      onResolveCardFileUrl: async () => 'https://example.com/image.png',
+      onOpenCard: () => {},
+      onRequestClose: () => {},
+      onSave: async () => {},
+    }
+
+    const { rerender } = render(<CardDrawer {...props} commentsOpen />)
+
+    expect(screen.getAllByText('Animated comments')).toHaveLength(2)
+
+    rerender(<CardDrawer {...props} commentsOpen={false} />)
+
+    expect(screen.getAllByText('Animated comments')).toHaveLength(2)
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
+
+    expect(screen.queryByText('Animated comments')).toBeNull()
+    vi.useRealTimers()
   })
 
   it('renders native card drawer panel fills', () => {
@@ -407,7 +509,7 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )
@@ -497,7 +599,7 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )
@@ -640,7 +742,7 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )
@@ -844,7 +946,7 @@ describe('CardDrawer', () => {
         onRequestCardUploadUrl={async () => 'https://example.com'}
         onResolveCardFileUrl={async () => 'https://example.com/image.png'}
         onOpenCard={() => {}}
-        onClose={() => {}}
+        onRequestClose={() => {}}
         onSave={async () => {}}
       />,
     )

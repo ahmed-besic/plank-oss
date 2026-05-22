@@ -1,11 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-  
-} from 'react'
-import type {MutableRefObject} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { MutableRefObject } from 'react'
 import { toast } from 'sonner'
 
 const SAVE_RETRY_DELAYS_MS = [0, 500, 1200]
@@ -26,7 +20,7 @@ export function useCardSave<TBody>({
   hasMeaningfulChanges,
   getSnapshot,
   isMountedRef,
-  onClose,
+  onRequestClose,
   saveSnapshot,
 }: {
   cardId: string
@@ -35,7 +29,7 @@ export function useCardSave<TBody>({
   hasMeaningfulChanges: (snapshot: PersistSnapshot<TBody>) => boolean
   getSnapshot: () => PersistSnapshot<TBody>
   isMountedRef: MutableRefObject<boolean>
-  onClose: () => void
+  onRequestClose: () => void
   saveSnapshot: (snapshot: PersistSnapshot<TBody>) => Promise<{
     stale?: boolean
     serverUpdatedAt?: number
@@ -105,12 +99,12 @@ export function useCardSave<TBody>({
 
   const closeAndSave = useCallback(async () => {
     if (isClosing) {
-      onClose()
       return
     }
 
     if (!dirtyRef.current) {
-      onClose()
+      setIsClosing(true)
+      onRequestClose()
       return
     }
 
@@ -118,12 +112,13 @@ export function useCardSave<TBody>({
     const shouldPersist = hasMeaningfulChanges(snapshot)
     if (!shouldPersist) {
       dirtyRef.current = false
-      onClose()
+      setIsClosing(true)
+      onRequestClose()
       return
     }
 
     setIsClosing(true)
-    onClose()
+    onRequestClose()
     void persistWithRetry(snapshot).finally(() => {
       if (isMountedRef.current) {
         setIsClosing(false)
@@ -135,7 +130,7 @@ export function useCardSave<TBody>({
     getSnapshot,
     isClosing,
     isMountedRef,
-    onClose,
+    onRequestClose,
     persistWithRetry,
   ])
 
