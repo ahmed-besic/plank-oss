@@ -8,7 +8,11 @@ import {
   persistedWorkspaceExtensionConfigValidator,
 } from "./lib/persistedState";
 
-const role = v.union(v.literal("owner"), v.literal("admin"), v.literal("member"));
+const role = v.union(
+  v.literal("owner"),
+  v.literal("admin"),
+  v.literal("member"),
+);
 const inviteRole = v.union(v.literal("admin"), v.literal("member"));
 const extensionStatus = v.union(v.literal("enabled"), v.literal("disabled"));
 const pluginDiagnosticKind = v.union(
@@ -138,7 +142,10 @@ const notificationKind = v.union(
   v.literal("mention_body"),
 );
 
-const boardViewInstanceMode = v.union(v.literal("shared"), v.literal("private"));
+const boardViewInstanceMode = v.union(
+  v.literal("shared"),
+  v.literal("private"),
+);
 const featureInstanceRef = v.object({
   schemaVersion: v.literal(1),
   kind: v.literal("view"),
@@ -495,7 +502,11 @@ export default defineSchema({
   })
     .index("by_board", ["boardId"])
     .index("by_workspace_board_view", ["workspaceId", "boardId", "viewId"])
-    .index("by_workspace_board_instance", ["workspaceId", "boardId", "instanceId"]),
+    .index("by_workspace_board_instance", [
+      "workspaceId",
+      "boardId",
+      "instanceId",
+    ]),
 
   boardMembershipStates: defineTable({
     workspaceId: v.id("workspaces"),
@@ -596,6 +607,37 @@ export default defineSchema({
       filterFields: ["workspaceId", "boardId", "scopeId"],
     }),
 
+  cardRelations: defineTable({
+    workspaceId: v.id("workspaces"),
+    sourceBoardId: v.id("boards"),
+    sourceCardId: v.id("cards"),
+    targetBoardId: v.id("boards"),
+    targetCardId: v.id("cards"),
+    type: cardRelationType,
+  })
+    .index("by_workspace_source_card", [
+      "workspaceId",
+      "sourceCardId",
+      "type",
+      "targetCardId",
+    ])
+    .index("by_workspace_target_card", [
+      "workspaceId",
+      "targetCardId",
+      "type",
+      "sourceCardId",
+    ])
+    .index("by_workspace_source_board", [
+      "workspaceId",
+      "sourceBoardId",
+      "sourceCardId",
+    ])
+    .index("by_workspace_target_board", [
+      "workspaceId",
+      "targetBoardId",
+      "targetCardId",
+    ]),
+
   workflowEvents: defineTable({
     eventId: v.string(),
     rootEventId: v.string(),
@@ -626,8 +668,16 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_event_id", ["workspaceId", "eventId"])
     .index("by_workspace_created_at", ["workspaceId", "timestamp"])
-    .index("by_workspace_board_created_at", ["workspaceId", "boardId", "timestamp"])
-    .index("by_workspace_card_created_at", ["workspaceId", "cardId", "timestamp"]),
+    .index("by_workspace_board_created_at", [
+      "workspaceId",
+      "boardId",
+      "timestamp",
+    ])
+    .index("by_workspace_card_created_at", [
+      "workspaceId",
+      "cardId",
+      "timestamp",
+    ]),
 
   cardChangeEvents: defineTable({
     workspaceId: v.id("workspaces"),
@@ -639,8 +689,16 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspace_created_at", ["workspaceId", "createdAt"])
-    .index("by_workspace_board_created_at", ["workspaceId", "boardId", "createdAt"])
-    .index("by_workspace_card_created_at", ["workspaceId", "cardId", "createdAt"]),
+    .index("by_workspace_board_created_at", [
+      "workspaceId",
+      "boardId",
+      "createdAt",
+    ])
+    .index("by_workspace_card_created_at", [
+      "workspaceId",
+      "cardId",
+      "createdAt",
+    ]),
 
   boardDigests: defineTable({
     workspaceId: v.id("workspaces"),
@@ -681,7 +739,11 @@ export default defineSchema({
         ruleName: v.optional(v.string()),
       }),
     ),
-    status: v.union(v.literal("draft"), v.literal("active"), v.literal("archived")),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+    ),
     authoringMode: v.optional(v.union(v.literal("simple"), v.literal("dsl"))),
     simpleRuleConfig: v.optional(simpleBehaviorRuleConfig),
     version: v.number(),
@@ -795,7 +857,11 @@ export default defineSchema({
       "cardId",
       "createdAt",
     ])
-    .index("by_workspace_card_created_at", ["workspaceId", "cardId", "createdAt"]),
+    .index("by_workspace_card_created_at", [
+      "workspaceId",
+      "cardId",
+      "createdAt",
+    ]),
 
   commentReactions: defineTable({
     workspaceId: v.id("workspaces"),

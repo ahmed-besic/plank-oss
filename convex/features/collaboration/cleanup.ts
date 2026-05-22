@@ -1,6 +1,9 @@
 import type { Id } from "../../_generated/dataModel";
 import type { MutationCtx } from "../../_generated/server";
-import { deleteRows } from "../../lib/cardRuntime";
+import {
+  deleteRows,
+  removeCardRelationProjectionRowsForBoard,
+} from "../../lib/cardRuntime";
 import {
   deleteNotificationsForBoardCards,
   deleteNotificationsForCard,
@@ -89,6 +92,11 @@ export async function cleanupDeletedBoardCollaborationRows({
   workspaceId: Id<"workspaces">;
   boardId: Id<"boards">;
 }) {
+  await removeCardRelationProjectionRowsForBoard({
+    ctx,
+    workspaceId,
+    boardId,
+  });
   await deleteRows(
     await ctx.db
       .query("boardMembershipStates")

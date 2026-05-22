@@ -700,7 +700,9 @@ describe("board functions", () => {
         },
       },
     });
-    expect(db.rows("boards").find((board) => board._id === boardResult.boardId)).toMatchObject({
+    expect(
+      db.rows("boards").find((board) => board._id === boardResult.boardId),
+    ).toMatchObject({
       boardSettings: {
         schemaVersion: 1,
         value: {},
@@ -979,7 +981,6 @@ describe("board functions", () => {
     expect(presence.items).toEqual([
       expect.objectContaining({
         userId: "user_1",
-        email: "owner@example.com",
         isViewer: true,
       }),
     ]);
@@ -1550,9 +1551,9 @@ describe("workspace and search functions", () => {
       role: "member",
       token: invite.token,
     });
-    expect(Number(db.rows("workspaceInvites")[0]?.expiresAt ?? 0)).toBeGreaterThan(
-      Number(db.rows("workspaceInvites")[0]?.createdAt ?? 0),
-    );
+    expect(
+      Number(db.rows("workspaceInvites")[0]?.expiresAt ?? 0),
+    ).toBeGreaterThan(Number(db.rows("workspaceInvites")[0]?.createdAt ?? 0));
 
     const overview = await (
       getOverview as unknown as (ctx: unknown, args: unknown) => Promise<any>
@@ -1623,10 +1624,9 @@ describe("workspace and search functions", () => {
     });
 
     await expect(
-      (acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
-        otherUserCtx,
-        { token: invite.token },
-      ),
+      (
+        acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(otherUserCtx, { token: invite.token }),
     ).rejects.toThrow(/different email/i);
   });
 
@@ -1680,14 +1680,15 @@ describe("workspace and search functions", () => {
     });
 
     await expect(
-      (acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
-        ctx,
-        { token: "expired-token" },
-      ),
+      (
+        acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(ctx, { token: "expired-token" }),
     ).rejects.toThrow(/expired/i);
 
     await expect(
-      (acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
+      (
+        acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(
         createMockCtx({
           db,
           email: "revoked@example.com",
@@ -1698,7 +1699,9 @@ describe("workspace and search functions", () => {
     ).rejects.toThrow(/revoked/i);
 
     await expect(
-      (acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
+      (
+        acceptInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(
         createMockCtx({
           db,
           email: "used@example.com",
@@ -1730,11 +1733,15 @@ describe("workspace and search functions", () => {
 
     const invites = db.rows("workspaceInvites");
     expect(firstInvite.token).not.toBe(secondInvite.token);
-    expect(invites.find((invite) => invite._id === firstInvite.inviteId)).toMatchObject({
+    expect(
+      invites.find((invite) => invite._id === firstInvite.inviteId),
+    ).toMatchObject({
       revokedAt: expect.any(Number),
       revokedBy: "user_1",
     });
-    expect(invites.find((invite) => invite._id === secondInvite.inviteId)).toMatchObject({
+    expect(
+      invites.find((invite) => invite._id === secondInvite.inviteId),
+    ).toMatchObject({
       email: "teammate@example.com",
     });
     expect(
@@ -1758,27 +1765,25 @@ describe("workspace and search functions", () => {
     });
 
     await expect(
-      (createInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
-        adminCtx,
-        {
-          workspaceSlug: "acme",
-          email: "member-invite@example.com",
-          role: "member",
-        },
-      ),
+      (
+        createInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(adminCtx, {
+        workspaceSlug: "acme",
+        email: "member-invite@example.com",
+        role: "member",
+      }),
     ).resolves.toMatchObject({
       inviteId: expect.any(String),
     });
 
     await expect(
-      (createInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
-        adminCtx,
-        {
-          workspaceSlug: "acme",
-          email: "admin-invite@example.com",
-          role: "admin",
-        },
-      ),
+      (
+        createInvite as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(adminCtx, {
+        workspaceSlug: "acme",
+        email: "admin-invite@example.com",
+        role: "admin",
+      }),
     ).rejects.toThrow(/only workspace owners/i);
   });
 
@@ -1821,7 +1826,10 @@ describe("workspace and search functions", () => {
     });
 
     await (
-      updateMemberRole as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      updateMemberRole as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
     )(ownerCtx, {
       workspaceSlug: "acme",
       memberId: "member_member",
@@ -1829,20 +1837,24 @@ describe("workspace and search functions", () => {
     });
 
     expect(
-      db.rows("workspaceMembers").find((member) => member._id === "member_member"),
+      db
+        .rows("workspaceMembers")
+        .find((member) => member._id === "member_member"),
     ).toMatchObject({
       role: "admin",
     });
 
     await expect(
-      (updateMemberRole as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
-        adminCtx,
-        {
-          workspaceSlug: "acme",
-          memberId: "member_member",
-          role: "member",
-        },
-      ),
+      (
+        updateMemberRole as unknown as (
+          ctx: unknown,
+          args: unknown,
+        ) => Promise<any>
+      )(adminCtx, {
+        workspaceSlug: "acme",
+        memberId: "member_member",
+        role: "member",
+      }),
     ).rejects.toThrow(/only workspace owners/i);
   });
 
@@ -1885,11 +1897,15 @@ describe("workspace and search functions", () => {
     );
 
     expect(
-      db.rows("workspaceMembers").some((member) => member._id === "member_member"),
+      db
+        .rows("workspaceMembers")
+        .some((member) => member._id === "member_member"),
     ).toBe(false);
 
     await expect(
-      (removeMember as unknown as (ctx: unknown, args: unknown) => Promise<any>)(
+      (
+        removeMember as unknown as (ctx: unknown, args: unknown) => Promise<any>
+      )(
         createMockCtx({
           db,
           email: "admin@example.com",
@@ -2117,6 +2133,19 @@ describe("workspace and search functions", () => {
         title: "Unblock release",
       }),
     ]);
+
+    db.rows("cards")[0]!.relations = [];
+    const projectedOnlyOutgoing = await (
+      getCardRelations as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+      cardId: "card_1",
+    });
+    expect(projectedOnlyOutgoing.outgoing).toHaveLength(1);
 
     const incoming = await (
       getCardRelations as unknown as (

@@ -27,7 +27,10 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@plank/ui'
 import type { BoardViewConfigScalar } from '@plank/domain'
-import type { PlatformClientServices, PlatformUiSlotId } from '@plank/plugin-sdk'
+import type {
+  PlatformClientServices,
+  PlatformUiSlotId,
+} from '@plank/plugin-sdk'
 import { createPermissionedClientServices } from '@plank/plugin-runtime'
 import { toast } from 'sonner'
 import { api } from '@convex/_generated/api'
@@ -62,7 +65,8 @@ const createRoute = createFileRoute as any
 export const Route = createRoute('/w/$workspaceSlug/boards/$boardId')({
   validateSearch: (search: any) => ({
     card: typeof search.card === 'string' ? search.card : undefined,
-    commentId: typeof search.commentId === 'string' ? search.commentId : undefined,
+    commentId:
+      typeof search.commentId === 'string' ? search.commentId : undefined,
     focus:
       search.focus === 'comments' || search.focus === 'description'
         ? search.focus
@@ -142,6 +146,7 @@ function BoardRoute() {
   const [utilityPage, setUtilityPage] = useState<BoardUtilityPage>('none')
   const [extensionCategory, setExtensionCategory] =
     useState<ExtensionCategory>('all')
+  const activityVisible = utilityPage === 'activity'
   const overviewOptions = convexQuery(api.workspaces.getOverview, {
     workspaceSlug,
   })
@@ -181,7 +186,8 @@ function BoardRoute() {
   })
   const presenceQuery = useQuery({
     ...presenceOptions,
-    enabled: hydrated && auth.isAuthenticated && hasLoadedBoard,
+    enabled:
+      hydrated && auth.isAuthenticated && hasLoadedBoard && activityVisible,
   })
   const activityOptions = convexQuery(api.boards.getBoardActivityPage, {
     workspaceSlug,
@@ -192,10 +198,7 @@ function BoardRoute() {
   const activityQuery = useQuery({
     ...activityOptions,
     enabled:
-      hydrated &&
-      auth.isAuthenticated &&
-      hasLoadedBoard &&
-      utilityPage === 'activity',
+      hydrated && auth.isAuthenticated && hasLoadedBoard && activityVisible,
   })
   const toggleExtension = useMutation({
     mutationFn: async ({
@@ -299,11 +302,13 @@ function BoardRoute() {
   const overviewData = overviewQuery.data as WorkspaceOverviewData | undefined
   const boardPresence = useMemo(
     () =>
-      ((presenceQuery.data?.items ?? []) as BoardPresenceEntry[]).filter(
-        (entry) =>
-          entry.lastHeartbeatAt > Date.now() - BOARD_PRESENCE_ACTIVE_MS,
-      ),
-    [presenceQuery.data?.items],
+      activityVisible
+        ? ((presenceQuery.data?.items ?? []) as BoardPresenceEntry[]).filter(
+            (entry) =>
+              entry.lastHeartbeatAt > Date.now() - BOARD_PRESENCE_ACTIVE_MS,
+          )
+        : [],
+    [activityVisible, presenceQuery.data?.items],
   )
   const overviewBoard = overviewData?.boards.find(
     (board) => board.id === boardId,
@@ -611,7 +616,8 @@ function BoardRoute() {
 
     const latestExternalAt = activeCard.latestExternalChange?.createdAt ?? 0
     const latestExternalActorId = activeCard.latestExternalChange?.actorId
-    const existingSeenAt = activeCard.viewerSeenAt ?? viewerBoardSeenAtRef.current
+    const existingSeenAt =
+      activeCard.viewerSeenAt ?? viewerBoardSeenAtRef.current
 
     if (latestExternalAt <= existingSeenAt) {
       return
@@ -701,7 +707,7 @@ function BoardRoute() {
   ])
 
   useEffect(() => {
-    if (!hydrated || !auth.isAuthenticated || !boardData) {
+    if (!hydrated || !auth.isAuthenticated || !boardData || !activityVisible) {
       return
     }
 
@@ -739,6 +745,7 @@ function BoardRoute() {
     boardData?.board.id,
     hydrated,
     auth.isAuthenticated,
+    activityVisible,
     convexClient,
     boardId,
     workspaceSlug,
@@ -770,7 +777,8 @@ function BoardRoute() {
         plugin.views.some((view) => view.id === pluginView.id),
       )
     : undefined
-  const renderViewId = pluginView?.id ?? activeDefinitionViewId ?? 'unknown-view'
+  const renderViewId =
+    pluginView?.id ?? activeDefinitionViewId ?? 'unknown-view'
   const activeViewRecord = boardData?.views.find(
     (view) => view.instanceId === activeViewId,
   )
@@ -784,7 +792,7 @@ function BoardRoute() {
     }
     const currentConfig =
       activeViewRecord?.config && typeof activeViewRecord.config === 'object'
-        ? (activeViewRecord.config)
+        ? activeViewRecord.config
         : {}
     const byType =
       currentConfig.kanbanDefaultPropertyValuesByType &&
@@ -831,7 +839,9 @@ function BoardRoute() {
       toast.error('A board needs at least one view.')
       return
     }
-    const targetView = boardData.views.find((view) => view.instanceId === instanceId)
+    const targetView = boardData.views.find(
+      (view) => view.instanceId === instanceId,
+    )
     if (targetView?.instanceMode === 'private') {
       const confirmed = window.confirm(
         `Delete "${targetView.label}"?\n\nThis will permanently delete that private view and all cards inside it.`,
@@ -842,7 +852,8 @@ function BoardRoute() {
     }
     const nextViewId =
       activeViewId === instanceId
-        ? boardData.views.find((view) => view.instanceId !== instanceId)?.instanceId
+        ? boardData.views.find((view) => view.instanceId !== instanceId)
+            ?.instanceId
         : activeViewId
     await actions.removeBoardView(instanceId)
     setViewContextMenu(null)
@@ -1027,25 +1038,29 @@ function BoardRoute() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    {boardHeaderExtensions.map(({ extension, plugin, pluginId }) => (
-                      <div key={`${pluginId}:${extension.id}`}>
-                        {extension.render({
-                          slot: 'board.header.actions',
-                          pluginId,
-                          workspaceSlug,
-                          boardId,
-                          services: createPermissionedClientServices({
-                            plugin,
-                            services: platformServices,
-                          }),
-                          boardType: boardData.boardType,
-                          tagDefinitions: boardData.tagDefinitions,
-                          members: boardData.members,
-                        })}
-                      </div>
-                    ))}
+                    {boardHeaderExtensions.map(
+                      ({ extension, plugin, pluginId }) => (
+                        <div key={`${pluginId}:${extension.id}`}>
+                          {extension.render({
+                            slot: 'board.header.actions',
+                            pluginId,
+                            workspaceSlug,
+                            boardId,
+                            services: createPermissionedClientServices({
+                              plugin,
+                              services: platformServices,
+                            }),
+                            boardType: boardData.boardType,
+                            tagDefinitions: boardData.tagDefinitions,
+                            members: boardData.members,
+                          })}
+                        </div>
+                      ),
+                    )}
                     {utilityPage === 'none' &&
-                    boardData.views.some((v) => v.instanceId === activeViewId) ? (
+                    boardData.views.some(
+                      (v) => v.instanceId === activeViewId,
+                    ) ? (
                       <button
                         className={cn(
                           'rounded-lg p-2 transition-all duration-200',
@@ -1190,40 +1205,40 @@ function BoardRoute() {
                           })
                         : platformServices
                       return pluginView.render({
-                      boardId,
-                      boardName: boardData.board.name,
-                      viewId: renderViewId,
-                      viewInstanceId: activeViewId ?? renderViewId,
-                      viewMode: boardData.activeViewMode ?? 'shared',
-                      viewLabel: activeViewRecord?.label ?? pluginView.label,
-                      viewConfig: activeViewRecord?.config,
-                      featureInstance: activeViewRecord?.featureInstance,
-                      updateViewConfig: (config) =>
-                        activeViewId
-                          ? pluginServices.views.updateConfig(config)
-                          : Promise.resolve(),
-                      services: pluginServices,
-                      boardType: boardData.boardType,
-                      columns: boardData.board.columns,
-                      cardTypes: boardData.cardTypes,
-                      tagDefinitions: boardData.tagDefinitions,
-                      cards: boardData.cards,
-                      members: boardData.members,
-                      ui: {
-                        unreadCardIds,
-                      },
-                      actions: {
-                        createCard: pluginServices.cards.create,
-                        createSubTask: actions.createSubTask,
-                        createColumn: actions.createColumn,
-                        deleteColumn: actions.deleteColumn,
-                        moveCard: pluginServices.cards.move,
-                        updateCard: pluginServices.cards.update,
-                        openCard: pluginServices.navigation.openCard,
-                        renameColumn: actions.renameColumn,
-                        reorderColumn: actions.reorderColumn,
-                      },
-                    })
+                        boardId,
+                        boardName: boardData.board.name,
+                        viewId: renderViewId,
+                        viewInstanceId: activeViewId ?? renderViewId,
+                        viewMode: boardData.activeViewMode ?? 'shared',
+                        viewLabel: activeViewRecord?.label ?? pluginView.label,
+                        viewConfig: activeViewRecord?.config,
+                        featureInstance: activeViewRecord?.featureInstance,
+                        updateViewConfig: (config) =>
+                          activeViewId
+                            ? pluginServices.views.updateConfig(config)
+                            : Promise.resolve(),
+                        services: pluginServices,
+                        boardType: boardData.boardType,
+                        columns: boardData.board.columns,
+                        cardTypes: boardData.cardTypes,
+                        tagDefinitions: boardData.tagDefinitions,
+                        cards: boardData.cards,
+                        members: boardData.members,
+                        ui: {
+                          unreadCardIds,
+                        },
+                        actions: {
+                          createCard: pluginServices.cards.create,
+                          createSubTask: actions.createSubTask,
+                          createColumn: actions.createColumn,
+                          deleteColumn: actions.deleteColumn,
+                          moveCard: pluginServices.cards.move,
+                          updateCard: pluginServices.cards.update,
+                          openCard: pluginServices.navigation.openCard,
+                          renameColumn: actions.renameColumn,
+                          reorderColumn: actions.reorderColumn,
+                        },
+                      })
                     })()}
                   </div>
                 ) : (
@@ -1233,8 +1248,9 @@ function BoardRoute() {
                         No board views are currently available.
                       </p>
                       <p className="text-sm text-zinc-600">
-                        All view-providing extensions appear to be disabled or unavailable for this
-                        board. Re-enable a board-view extension in workspace settings.
+                        All view-providing extensions appear to be disabled or
+                        unavailable for this board. Re-enable a board-view
+                        extension in workspace settings.
                       </p>
                       <Button onClick={openSettings} tone="ghost">
                         <Settings2 className="mr-2 h-4 w-4" />
@@ -1324,7 +1340,8 @@ function BoardRoute() {
             updateSearch((current: any) => ({
               ...current,
               focus: current.focus === 'comments' ? undefined : 'comments',
-              commentId: current.focus === 'comments' ? undefined : current.commentId,
+              commentId:
+                current.focus === 'comments' ? undefined : current.commentId,
             }))
           }
           onCloseComments={() =>
@@ -1373,18 +1390,18 @@ function BoardRoute() {
               {availableViewOptions.length ? (
                 availableViewOptions.map((view) => {
                   const Icon = getViewIcon(view.id, view.label)
-                  const sharingPolicy = view.sharingPolicy ?? 'shared_with_private'
+                  const sharingPolicy =
+                    view.sharingPolicy ?? 'shared_with_private'
                   return (
-                    <div
-                      key={view.id}
-                      className="flex items-center gap-1.5"
-                    >
+                    <div key={view.id} className="flex items-center gap-1.5">
                       <button
                         className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-text-secondary transition hover:bg-surface-sunken hover:text-text-primary"
                         onClick={async () => {
                           const instanceId = await actions.addBoardView(
                             view.id,
-                            sharingPolicy === 'force_private' ? 'private' : 'shared',
+                            sharingPolicy === 'force_private'
+                              ? 'private'
+                              : 'shared',
                           )
                           setIsViewMenuOpen(false)
                           setUtilityPage('none')

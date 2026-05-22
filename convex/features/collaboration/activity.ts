@@ -75,11 +75,15 @@ export async function listBoardPresenceForViewer(
       .collect(),
     ctx.db
       .query("workspaceMembers")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
+      .withIndex("by_workspace", (query) =>
+        query.eq("workspaceId", workspace._id),
+      )
       .collect(),
   ]);
 
-  const memberByUserId = new Map(members.map((member) => [member.userId, member]));
+  const memberByUserId = new Map(
+    members.map((member) => [member.userId, member]),
+  );
 
   return {
     items: presenceRows
@@ -90,12 +94,8 @@ export async function listBoardPresenceForViewer(
           userId: row.userId,
           name:
             row.userId === userId
-              ? authUser?.name ?? member?.name
+              ? (authUser?.name ?? member?.name)
               : member?.name,
-          email:
-            row.userId === userId
-              ? authUser?.email ?? member?.email
-              : member?.email,
           role: member?.role,
           lastHeartbeatAt: row.lastHeartbeatAt,
           isViewer: row.userId === userId,
@@ -130,17 +130,15 @@ export async function getBoardActivityPageForViewer(
 
   const pageSize = Math.max(1, Math.min(args.limit ?? 30, 100));
   const parsedCursor = parseActivityCursor(args.cursor);
-  const [members, views, cards] = await Promise.all([
+  const [members, views] = await Promise.all([
     ctx.db
       .query("workspaceMembers")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
+      .withIndex("by_workspace", (query) =>
+        query.eq("workspaceId", workspace._id),
+      )
       .collect(),
     ctx.db
       .query("boardViews")
-      .withIndex("by_board", (query) => query.eq("boardId", args.boardId))
-      .collect(),
-    ctx.db
-      .query("cards")
       .withIndex("by_board", (query) => query.eq("boardId", args.boardId))
       .collect(),
   ]);
@@ -151,45 +149,67 @@ export async function getBoardActivityPageForViewer(
   const activeScopeId = activeView
     ? getBoardViewScopeId(activeView)
     : SHARED_VIEW_SCOPE_ID;
+  const cards =
+    activeScopeId === SHARED_VIEW_SCOPE_ID
+      ? await ctx.db
+          .query("cards")
+          .withIndex("by_board", (query) => query.eq("boardId", args.boardId))
+          .collect()
+      : await ctx.db
+          .query("cards")
+          .withIndex("by_board_scope", (query) =>
+            query.eq("boardId", args.boardId).eq("scopeId", activeScopeId),
+          )
+          .collect();
   const visibleCardIds = new Set(
     cards
       .filter((card) => getCardScopeId(card) === activeScopeId)
       .map((card) => String(card._id)),
   );
-  const visibleCards = cards.filter((card) => visibleCardIds.has(String(card._id)));
-  const perCardEvents = await Promise.all(
-    visibleCards.map(async (card) =>
-      (
-        await ctx.db
-          .query("cardChangeEvents")
-          .withIndex("by_workspace_card_created_at", (query) => {
-            const byCard = query
-              .eq("workspaceId", workspace._id)
-              .eq("cardId", card._id);
-            return parsedCursor
-              ? byCard.lte("createdAt", parsedCursor.createdAt)
-              : byCard;
-          })
-          .order("desc")
-          .take(pageSize + 1)
-      ).filter((event) => isActivityBeforeCursor(event, parsedCursor)),
-    ),
-  );
-  const filteredEvents = perCardEvents
-    .flat()
-    .sort((left, right) => {
-      if (right.createdAt !== left.createdAt) {
-        return right.createdAt - left.createdAt;
+  const batchSize = Math.max(pageSize * 4, 40);
+  const filteredEvents: Doc<"cardChangeEvents">[] = [];
+  let batchCursor = parsedCursor;
+  while (filteredEvents.length < pageSize + 1) {
+    const batch = (
+      await ctx.db
+        .query("cardChangeEvents")
+        .withIndex("by_workspace_board_created_at", (query) => {
+          const byBoard = query
+            .eq("workspaceId", workspace._id)
+            .eq("boardId", args.boardId);
+          return batchCursor
+            ? byBoard.lte("createdAt", batchCursor.createdAt)
+            : byBoard;
+        })
+        .order("desc")
+        .take(batchSize)
+    ).filter((event) => isActivityBeforeCursor(event, batchCursor));
+
+    for (const event of batch) {
+      if (visibleCardIds.has(String(event.cardId))) {
+        filteredEvents.push(event);
       }
-      return String(right._id).localeCompare(String(left._id));
-    });
+      if (filteredEvents.length >= pageSize + 1) {
+        break;
+      }
+    }
+
+    if (batch.length < batchSize) {
+      break;
+    }
+    batchCursor = parseActivityCursor(
+      encodeActivityCursor(batch[batch.length - 1]!),
+    );
+  }
   const page = filteredEvents.slice(0, pageSize + 1);
   const items = page.slice(0, pageSize);
   const nextCursor =
     page.length > pageSize && items.length > 0
       ? encodeActivityCursor(items[items.length - 1]!)
       : null;
-  const memberByUserId = new Map(members.map((member) => [member.userId, member]));
+  const memberByUserId = new Map(
+    members.map((member) => [member.userId, member]),
+  );
   const cardsById = new Map(cards.map((card) => [String(card._id), card]));
 
   return {

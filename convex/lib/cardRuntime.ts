@@ -51,10 +51,7 @@ function sanitizeBodyForPersistence(body: unknown) {
   return normalizeCardBody(body);
 }
 
-function validateScalar(
-  valueType: ScalarValueType,
-  value: unknown,
-) {
+function validateScalar(valueType: ScalarValueType, value: unknown) {
   if (value === null || value === undefined) {
     return true;
   }
@@ -75,7 +72,9 @@ function validateScalar(
 
 function validateFieldValue(field: RuntimeFieldSchema, value: unknown) {
   if (field.propertyType === "user" && Array.isArray(value)) {
-    return value.every((entry) => typeof entry === "string" && entry.length > 0);
+    return value.every(
+      (entry) => typeof entry === "string" && entry.length > 0,
+    );
   }
   return validateScalar(field.valueType, value);
 }
@@ -152,6 +151,129 @@ export function getIncomingRelationLabel(type: CardRelationType) {
   }
 }
 
+export async function upsertCardRelationProjection({
+  ctx,
+  workspaceId,
+  sourceBoardId,
+  sourceCardId,
+  targetBoardId,
+  targetCardId,
+  type,
+}: {
+  ctx: MutationCtx;
+  workspaceId: Id<"workspaces">;
+  sourceBoardId: Id<"boards">;
+  sourceCardId: Id<"cards">;
+  targetBoardId: Id<"boards">;
+  targetCardId: Id<"cards">;
+  type: CardRelationType;
+}) {
+  const existing = await ctx.db
+    .query("cardRelations")
+    .withIndex("by_workspace_source_card", (query) =>
+      query
+        .eq("workspaceId", workspaceId)
+        .eq("sourceCardId", sourceCardId)
+        .eq("type", type)
+        .eq("targetCardId", targetCardId),
+    )
+    .unique();
+
+  if (existing) {
+    return existing._id;
+  }
+
+  return await ctx.db.insert("cardRelations", {
+    workspaceId,
+    sourceBoardId,
+    sourceCardId,
+    targetBoardId,
+    targetCardId,
+    type,
+  });
+}
+
+export async function removeCardRelationProjection({
+  ctx,
+  workspaceId,
+  sourceCardId,
+  targetCardId,
+  type,
+}: {
+  ctx: MutationCtx;
+  workspaceId: Id<"workspaces">;
+  sourceCardId: Id<"cards">;
+  targetCardId: Id<"cards">;
+  type: CardRelationType;
+}) {
+  const rows = await ctx.db
+    .query("cardRelations")
+    .withIndex("by_workspace_source_card", (query) =>
+      query
+        .eq("workspaceId", workspaceId)
+        .eq("sourceCardId", sourceCardId)
+        .eq("type", type)
+        .eq("targetCardId", targetCardId),
+    )
+    .collect();
+
+  await deleteRows(rows, ctx);
+}
+
+export async function removeCardRelationProjectionRowsForCard({
+  ctx,
+  workspaceId,
+  cardId,
+}: {
+  ctx: MutationCtx;
+  workspaceId: Id<"workspaces">;
+  cardId: Id<"cards">;
+}) {
+  const [outgoing, incoming] = await Promise.all([
+    ctx.db
+      .query("cardRelations")
+      .withIndex("by_workspace_source_card", (query) =>
+        query.eq("workspaceId", workspaceId).eq("sourceCardId", cardId),
+      )
+      .collect(),
+    ctx.db
+      .query("cardRelations")
+      .withIndex("by_workspace_target_card", (query) =>
+        query.eq("workspaceId", workspaceId).eq("targetCardId", cardId),
+      )
+      .collect(),
+  ]);
+
+  await deleteRows([...outgoing, ...incoming], ctx);
+}
+
+export async function removeCardRelationProjectionRowsForBoard({
+  ctx,
+  workspaceId,
+  boardId,
+}: {
+  ctx: MutationCtx;
+  workspaceId: Id<"workspaces">;
+  boardId: Id<"boards">;
+}) {
+  const [outgoing, incoming] = await Promise.all([
+    ctx.db
+      .query("cardRelations")
+      .withIndex("by_workspace_source_board", (query) =>
+        query.eq("workspaceId", workspaceId).eq("sourceBoardId", boardId),
+      )
+      .collect(),
+    ctx.db
+      .query("cardRelations")
+      .withIndex("by_workspace_target_board", (query) =>
+        query.eq("workspaceId", workspaceId).eq("targetBoardId", boardId),
+      )
+      .collect(),
+  ]);
+
+  await deleteRows([...outgoing, ...incoming], ctx);
+}
+
 export async function removeIncomingRelationsToCard({
   ctx,
   workspaceId,
@@ -161,6 +283,14 @@ export async function removeIncomingRelationsToCard({
   workspaceId: Id<"workspaces">;
   cardId: Id<"cards">;
 }) {
+  const incomingRelationRows = await ctx.db
+    .query("cardRelations")
+    .withIndex("by_workspace_target_card", (query) =>
+      query.eq("workspaceId", workspaceId).eq("targetCardId", cardId),
+    )
+    .collect();
+  await deleteRows(incomingRelationRows, ctx);
+
   const workspaceCards = await ctx.db
     .query("cards")
     .withIndex("by_workspace", (query) => query.eq("workspaceId", workspaceId))
@@ -457,7 +587,9 @@ export function buildUpdateCardState({
           .filter((key) => key in card.fields.core || key in card.fields.custom)
           .map((key) => [
             key,
-            key in card.fields.core ? card.fields.core[key] : card.fields.custom[key],
+            key in card.fields.core
+              ? card.fields.core[key]
+              : card.fields.custom[key],
           ]),
       )
     : undefined;
@@ -578,7 +710,9 @@ export async function emitUpdateCardEvents({
   }
 
   if (args.tagIds) {
-    const addedTagIds = nextTagIds.filter((tagId) => !card.tagIds.includes(tagId));
+    const addedTagIds = nextTagIds.filter(
+      (tagId) => !card.tagIds.includes(tagId),
+    );
     for (const tagId of addedTagIds) {
       const tag = await ctx.db.get(tagId);
       await emitCardEvent(ctx, workspaceId, {

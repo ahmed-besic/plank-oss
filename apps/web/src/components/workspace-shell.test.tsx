@@ -64,6 +64,8 @@ vi.mock('@convex/_generated/api', () => ({
       renameBoard: {},
     },
     workspaces: {
+      createBoard: {},
+      createWorkspace: {},
       getOverview: {},
       listMine: {},
     },

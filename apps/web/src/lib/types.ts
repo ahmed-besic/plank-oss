@@ -340,7 +340,6 @@ export interface CardCommentData {
 export interface BoardPresenceEntry {
   userId: string
   name?: string
-  email?: string
   role?: 'owner' | 'admin' | 'member'
   lastHeartbeatAt: number
   isViewer: boolean

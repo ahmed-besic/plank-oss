@@ -1,4 +1,8 @@
-import { createKeyAfter, createKeyBetween, extractBodyMentions } from "@plank/domain";
+import {
+  createKeyAfter,
+  createKeyBetween,
+  extractBodyMentions,
+} from "@plank/domain";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -22,12 +26,15 @@ import {
   isValidBody,
   loadCustomFieldSchema,
   relationTypeValidator,
+  removeCardRelationProjection,
+  removeCardRelationProjectionRowsForCard,
   removeIncomingRelationsToCard,
   requireBoardWithType,
   requireCardInBoard,
   resolveRegistryType,
   resolveStatusAndColumn,
   sortByOrderKey,
+  upsertCardRelationProjection,
   validateAndSplitPropertyUpdates,
 } from "./lib/cardRuntime";
 import {
@@ -182,7 +189,9 @@ export const createCard = mutation({
         query.eq("boardId", board._id).eq("statusKey", statusKey),
       )
       .collect();
-    const activeScopeId = activeView ? getBoardViewScopeId(activeView) : undefined;
+    const activeScopeId = activeView
+      ? getBoardViewScopeId(activeView)
+      : undefined;
     const orderKey = createKeyAfter(
       sortByOrderKey(
         activeScopeId
@@ -374,8 +383,22 @@ export const getCardRelations = query({
       return { outgoing: [], incoming: [] };
     }
 
+    const [outgoingEdges, incomingEdges] = await Promise.all([
+      ctx.db
+        .query("cardRelations")
+        .withIndex("by_workspace_source_card", (query) =>
+          query.eq("workspaceId", workspace._id).eq("sourceCardId", card._id),
+        )
+        .collect(),
+      ctx.db
+        .query("cardRelations")
+        .withIndex("by_workspace_target_card", (query) =>
+          query.eq("workspaceId", workspace._id).eq("targetCardId", card._id),
+        )
+        .collect(),
+    ]);
     const outgoing = await Promise.all(
-      card.relations.map(async (relation) => {
+      outgoingEdges.map(async (relation) => {
         const targetCard = await ctx.db.get(relation.targetCardId);
         if (!targetCard || targetCard.workspaceId !== workspace._id) {
           return null;
@@ -394,26 +417,20 @@ export const getCardRelations = query({
       }),
     );
 
-    const workspaceCards = await ctx.db
-      .query("cards")
-      .withIndex("by_workspace", (query) =>
-        query.eq("workspaceId", workspace._id),
-      )
-      .collect();
-    const sourceBoardIds = new Set<string>();
-    const incomingEdges = workspaceCards.flatMap((candidate) =>
-      candidate.relations
-        .filter((relation) => relation.targetCardId === card._id)
-        .map((relation) => {
-          sourceBoardIds.add(candidate.boardId);
-          return {
-            source: candidate,
-            type: relation.type,
-          };
+    const incomingSources = (
+      await Promise.all(
+        incomingEdges.map(async (relation) => {
+          const source = await ctx.db.get(relation.sourceCardId);
+          return source && source.workspaceId === workspace._id
+            ? { source, type: relation.type }
+            : null;
         }),
-    );
+      )
+    ).filter((row) => row !== null);
     const boardNames = new Map<string, string>();
-    for (const sourceBoardId of sourceBoardIds) {
+    for (const sourceBoardId of new Set(
+      incomingSources.map(({ source }) => source.boardId),
+    )) {
       const board = await ctx.db.get(sourceBoardId as Id<"boards">);
       if (board && board.workspaceId === workspace._id) {
         boardNames.set(sourceBoardId, board.name);
@@ -422,7 +439,7 @@ export const getCardRelations = query({
 
     return {
       outgoing: outgoing.filter(Boolean),
-      incoming: incomingEdges.map(({ source, type }) => ({
+      incoming: incomingSources.map(({ source, type }) => ({
         direction: "incoming" as const,
         type,
         displayType: getIncomingRelationLabel(type),
@@ -482,6 +499,15 @@ export const addCardRelation = mutation({
       ],
       updatedAt: Date.now(),
     });
+    await upsertCardRelationProjection({
+      ctx,
+      workspaceId: workspace._id,
+      sourceBoardId: card.boardId,
+      sourceCardId: card._id,
+      targetBoardId: targetCard.boardId,
+      targetCardId: targetCard._id,
+      type: args.type,
+    });
 
     return { ok: true };
   },
@@ -516,6 +542,13 @@ export const removeCardRelation = mutation({
           ),
       ),
       updatedAt: Date.now(),
+    });
+    await removeCardRelationProjection({
+      ctx,
+      workspaceId: workspace._id,
+      sourceCardId: card._id,
+      targetCardId: args.targetCardId,
+      type: args.type,
     });
 
     return { ok: true };
@@ -686,7 +719,8 @@ export const updateCard = mutation({
             .filter(
               (candidate) =>
                 candidate._id !== card._id &&
-                getCardScopeOrDefault(candidate) === getCardScopeOrDefault(card),
+                getCardScopeOrDefault(candidate) ===
+                  getCardScopeOrDefault(card),
             )
             .at(-1)?.orderKey,
         )
@@ -852,6 +886,11 @@ export const deleteCard = mutation({
     });
 
     await removeIncomingRelationsToCard({
+      ctx,
+      workspaceId: workspace._id,
+      cardId: card._id,
+    });
+    await removeCardRelationProjectionRowsForCard({
       ctx,
       workspaceId: workspace._id,
       cardId: card._id,

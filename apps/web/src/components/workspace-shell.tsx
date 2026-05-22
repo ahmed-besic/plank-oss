@@ -6,11 +6,11 @@ import { cn } from '@plank/ui'
 import {
   ChevronDown,
   CircleDot,
-  LayoutDashboard,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
+  Plus,
   Settings2,
   SquareKanban,
   Trash2,
@@ -44,12 +44,23 @@ export function WorkspaceShell({
   const { convexClient, pluginRegistry, queryClient } = usePlankApp()
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const boardMenuRef = useRef<HTMLDivElement>(null)
+  const createBoardMenuRef = useRef<HTMLDivElement>(null)
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
+  const [isCreateBoardMenuOpen, setIsCreateBoardMenuOpen] = useState(false)
   const [openBoardMenuId, setOpenBoardMenuId] = useState<string | null>(null)
-  const { isSidebarHidden, setIsSidebarHidden, sidebarWidth, startSidebarResize } =
-    useWorkspaceShellLayout()
+  const [newBoardName, setNewBoardName] = useState('New board')
+  const [newBoardTypeId, setNewBoardTypeId] = useState(
+    overview.boardTypes[0]?.id ?? '',
+  )
+  const {
+    isSidebarHidden,
+    setIsSidebarHidden,
+    sidebarWidth,
+    startSidebarResize,
+  } = useWorkspaceShellLayout()
+  const workspacesOptions = convexQuery(api.workspaces.listMine, {})
   const workspacesQuery = useQuery({
-    ...convexQuery(api.workspaces.listMine, {}),
+    ...workspacesOptions,
     enabled: hydrated && auth.isAuthenticated,
   })
   const overviewOptions = convexQuery(api.workspaces.getOverview, {
@@ -66,9 +77,14 @@ export function WorkspaceShell({
   const enabledPluginIds = useMemo(
     () =>
       overview.extensions
-        .filter((extension) => extension.installed && extension.status === 'enabled')
+        .filter(
+          (extension) => extension.installed && extension.status === 'enabled',
+        )
         .map((extension) => extension.manifest.id),
     [overview.extensions],
+  )
+  const selectedNewBoardType = overview.boardTypes.find(
+    (boardType) => boardType.id === newBoardTypeId,
   )
   const sidebarNavigationExtensions = useMemo(
     () =>
@@ -87,7 +103,9 @@ export function WorkspaceShell({
         name,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: overviewOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: overviewOptions.queryKey,
+      })
     },
   })
   const deleteBoard = useMutation({
@@ -97,7 +115,9 @@ export function WorkspaceShell({
         boardId,
       }),
     onSuccess: async (_result, boardId) => {
-      await queryClient.invalidateQueries({ queryKey: overviewOptions.queryKey })
+      await queryClient.invalidateQueries({
+        queryKey: overviewOptions.queryKey,
+      })
       if (activeBoardId === boardId) {
         void navigate({
           params: { workspaceSlug: overview.workspace.slug },
@@ -105,6 +125,58 @@ export function WorkspaceShell({
           to: '/w/$workspaceSlug',
         } as never)
       }
+    },
+  })
+  const createBoard = useMutation({
+    mutationFn: async () => {
+      if (!selectedNewBoardType) {
+        throw new Error('Choose a board type first')
+      }
+      const board = await convexClient.mutation(api.workspaces.createBoard, {
+        workspaceSlug: overview.workspace.slug,
+        name: newBoardName.trim(),
+        boardTypeId: selectedNewBoardType.id as never,
+      })
+      return {
+        ...board,
+        viewId: selectedNewBoardType.defaultViewIds[0],
+      }
+    },
+    onSuccess: async (result) => {
+      setNewBoardName('New board')
+      setIsCreateBoardMenuOpen(false)
+      await queryClient.invalidateQueries({
+        queryKey: overviewOptions.queryKey,
+      })
+      void navigate({
+        params: {
+          boardId: result.boardId,
+          workspaceSlug: overview.workspace.slug,
+        },
+        search: {
+          view: result.viewId,
+        },
+        to: '/w/$workspaceSlug/boards/$boardId',
+      } as never)
+    },
+  })
+  const createWorkspace = useMutation({
+    mutationFn: async (name: string) =>
+      convexClient.mutation(api.workspaces.createWorkspace, {
+        name,
+      }),
+    onSuccess: async (result) => {
+      setIsWorkspaceMenuOpen(false)
+      await queryClient.invalidateQueries({
+        queryKey: workspacesOptions.queryKey,
+      })
+      void navigate({
+        params: {
+          workspaceSlug: result.workspaceSlug,
+        },
+        search: {},
+        to: '/w/$workspaceSlug',
+      } as never)
     },
   })
   const prefetchBoard = (boardId: string) => {
@@ -122,7 +194,18 @@ export function WorkspaceShell({
   useEffect(() => {
     setIsWorkspaceMenuOpen(false)
     setOpenBoardMenuId(null)
+    setIsCreateBoardMenuOpen(false)
   }, [overview.workspace.slug])
+
+  useEffect(() => {
+    if (
+      newBoardTypeId &&
+      overview.boardTypes.some((boardType) => boardType.id === newBoardTypeId)
+    ) {
+      return
+    }
+    setNewBoardTypeId(overview.boardTypes[0]?.id ?? '')
+  }, [newBoardTypeId, overview.boardTypes])
 
   useEffect(() => {
     if (!isWorkspaceMenuOpen) {
@@ -176,6 +259,32 @@ export function WorkspaceShell({
     }
   }, [openBoardMenuId])
 
+  useEffect(() => {
+    if (!isCreateBoardMenuOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!createBoardMenuRef.current?.contains(event.target as Node)) {
+        setIsCreateBoardMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsCreateBoardMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isCreateBoardMenuOpen])
+
   const switchWorkspace = (workspaceSlug: string) => {
     setIsWorkspaceMenuOpen(false)
 
@@ -218,18 +327,41 @@ export function WorkspaceShell({
     void deleteBoard.mutateAsync(boardId)
   }
 
+  const requestCreateWorkspace = () => {
+    const name = window.prompt('Workspace name', 'New workspace')?.trim()
+    if (!name || createWorkspace.isPending) {
+      return
+    }
+    void createWorkspace.mutateAsync(name)
+  }
+
+  const requestCreateBoard = () => {
+    if (
+      !newBoardName.trim() ||
+      !selectedNewBoardType ||
+      createBoard.isPending
+    ) {
+      return
+    }
+    void createBoard.mutateAsync()
+  }
+
   return (
     <div className="flex min-h-screen bg-lavender-mist">
       {/* ─── Left sidebar ─── */}
       {isSidebarHidden ? (
-        <button
-          aria-label="Show sidebar"
-          className="fixed left-3 top-3 z-40 hidden h-9 w-9 items-center justify-center rounded-xl border border-border-subtle bg-cloud-white text-text-secondary shadow-card transition hover:text-text-primary lg:flex"
-          onClick={() => setIsSidebarHidden(false)}
-          type="button"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </button>
+        <div className="hidden w-14 shrink-0 border-r border-border-subtle bg-cloud-white lg:block">
+          <div className="flex h-14 items-center justify-center border-b border-border-subtle">
+            <button
+              aria-label="Show sidebar"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+              onClick={() => setIsSidebarHidden(false)}
+              type="button"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       ) : null}
       <aside
         className={cn(
@@ -240,16 +372,16 @@ export function WorkspaceShell({
       >
         {/* Workspace switcher */}
         <div
-          className="relative border-b border-border-subtle px-3 py-4"
+          className="relative flex h-14 items-center border-b border-border-subtle px-3"
           ref={workspaceMenuRef}
         >
-          <div className="flex items-center gap-1">
+          <div className="flex w-full items-center gap-1">
             <button
-              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 hover:bg-surface-sunken"
+              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
               onClick={() => setIsWorkspaceMenuOpen((open) => !open)}
               type="button"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet to-accent-teal text-sm font-bold text-white shadow-sm">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet to-accent-teal text-sm font-bold text-white shadow-sm">
                 {overview.workspace.name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
@@ -279,7 +411,7 @@ export function WorkspaceShell({
           </div>
 
           {isWorkspaceMenuOpen ? (
-            <div className="absolute left-3 right-3 top-full z-30 mt-1 animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
+            <div className="absolute left-3 top-full z-30 mt-1 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
               {workspaceItems.map((workspace) => {
                 const isCurrentWorkspace =
                   workspace.slug === overview.workspace.slug
@@ -315,6 +447,22 @@ export function WorkspaceShell({
                   </button>
                 )
               })}
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary transition-all duration-150 hover:bg-surface-sunken hover:text-text-primary"
+                disabled={createWorkspace.isPending}
+                onClick={requestCreateWorkspace}
+                type="button"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-electric-violet">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <span className="text-sm font-medium">
+                  {createWorkspace.isPending
+                    ? 'Creating workspace…'
+                    : 'Create workspace'}
+                </span>
+              </button>
             </div>
           ) : null}
         </div>
@@ -323,45 +471,78 @@ export function WorkspaceShell({
 
         {/* Section navigation */}
         <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-            Navigation
-          </p>
-          <Link
-            className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-              section === 'overview'
-                ? 'bg-electric-violet/10 text-electric-violet'
-                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
-            )}
-            params={{ workspaceSlug: overview.workspace.slug }}
-            to="/w/$workspaceSlug"
-          >
-            <LayoutDashboard className="h-[18px] w-[18px]" />
-            Overview
-          </Link>
-          <Link
-            className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
-              section === 'settings'
-                ? 'bg-electric-violet/10 text-electric-violet'
-                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
-            )}
-            params={{ workspaceSlug: overview.workspace.slug }}
-            to="/w/$workspaceSlug/settings"
-          >
-            <Settings2 className="h-[18px] w-[18px]" />
-            Settings
-          </Link>
-
           {/* Boards list */}
+          <div className="mb-1 flex items-center justify-between px-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
+              Boards
+            </p>
+            <div className="relative" ref={createBoardMenuRef}>
+              <button
+                aria-label="Create board"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+                onClick={() => setIsCreateBoardMenuOpen((open) => !open)}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              {isCreateBoardMenuOpen ? (
+                <div
+                  className="absolute left-0 top-8 z-40 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-3 text-sm shadow-elevated"
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                    New board
+                  </p>
+                  <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                    Board type
+                  </label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                    disabled={overview.boardTypes.length === 0}
+                    onChange={(event) => setNewBoardTypeId(event.target.value)}
+                    value={newBoardTypeId}
+                  >
+                    {overview.boardTypes.map((boardType) => (
+                      <option key={boardType.id} value={boardType.id}>
+                        {boardType.name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                    Name
+                  </label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-border-subtle bg-cloud-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                    onChange={(event) => setNewBoardName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        requestCreateBoard()
+                      }
+                    }}
+                    value={newBoardName}
+                  />
+                  <button
+                    className="mt-3 flex w-full items-center justify-center rounded-xl bg-electric-violet px-3 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={
+                      !newBoardName.trim() ||
+                      !selectedNewBoardType ||
+                      createBoard.isPending
+                    }
+                    onClick={requestCreateBoard}
+                    type="button"
+                  >
+                    {createBoard.isPending ? 'Creating…' : 'Create board'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
           {overview.boards.length > 0 ? (
             <>
-              <p className="mb-1 mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-                Boards
-              </p>
               {overview.boards.map((board) => {
                 const boardSeenAt = board.viewerSeenAt ?? 0
-                const latestExternalAt = board.latestExternalChange?.createdAt ?? 0
+                const latestExternalAt =
+                  board.latestExternalChange?.createdAt ?? 0
                 const hasUnreadExternal =
                   latestExternalAt > boardSeenAt &&
                   board.latestExternalChange?.actorId !== overview.viewerUserId
@@ -421,7 +602,9 @@ export function WorkspaceShell({
                       >
                         <button
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-text-secondary transition hover:bg-surface-sunken hover:text-text-primary"
-                          onClick={() => requestRenameBoard(board.id, board.name)}
+                          onClick={() =>
+                            requestRenameBoard(board.id, board.name)
+                          }
                           type="button"
                         >
                           <Pencil className="h-4 w-4" />
@@ -429,7 +612,9 @@ export function WorkspaceShell({
                         </button>
                         <button
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 transition hover:bg-red-50"
-                          onClick={() => requestDeleteBoard(board.id, board.name)}
+                          onClick={() =>
+                            requestDeleteBoard(board.id, board.name)
+                          }
                           type="button"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -441,7 +626,11 @@ export function WorkspaceShell({
                 )
               })}
             </>
-          ) : null}
+          ) : (
+            <div className="rounded-xl border border-dashed border-border-subtle px-3 py-5 text-center text-sm text-text-tertiary">
+              No boards yet.
+            </div>
+          )}
           {sidebarNavigationExtensions.length ? (
             <div className="mt-5 space-y-1 border-t border-border-subtle pt-4">
               {sidebarNavigationExtensions.map(({ extension, pluginId }) => (
@@ -459,33 +648,19 @@ export function WorkspaceShell({
 
         {/* Bottom actions */}
         <div className="border-t border-border-subtle px-3 py-3">
-          {section !== 'board' ? (
-            <select
-              aria-label="Boards"
-              className="w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition-all duration-200 focus:border-electric-violet focus:shadow-glow-violet"
-              onChange={(event) => {
-                if (!event.target.value) {
-                  return
-                }
-
-                void navigate({
-                  params: {
-                    boardId: event.target.value,
-                    workspaceSlug: overview.workspace.slug,
-                  },
-                  to: '/w/$workspaceSlug/boards/$boardId',
-                } as never)
-              }}
-              value={activeBoardId ?? ''}
-            >
-              <option value="">Jump to board…</option>
-              {overview.boards.map((board) => (
-                <option key={board.id} value={board.id}>
-                  {board.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
+          <Link
+            className={cn(
+              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+              section === 'settings'
+                ? 'bg-electric-violet/10 text-electric-violet'
+                : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+            )}
+            params={{ workspaceSlug: overview.workspace.slug }}
+            to="/w/$workspaceSlug/settings"
+          >
+            <Settings2 className="h-[18px] w-[18px]" />
+            Settings
+          </Link>
         </div>
         <button
           aria-label="Resize sidebar"

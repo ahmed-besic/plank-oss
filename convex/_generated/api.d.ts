@@ -50,6 +50,7 @@ import type * as lib_slugs from "../lib/slugs.js";
 import type * as maintenance from "../maintenance.js";
 import type * as migrations_phase2a from "../migrations/phase2a.js";
 import type * as migrations_phase2b from "../migrations/phase2b.js";
+import type * as migrations_relationProjection from "../migrations/relationProjection.js";
 import type * as notifications from "../notifications.js";
 import type * as pluginDiagnostics from "../pluginDiagnostics.js";
 import type * as plugins from "../plugins.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   "migrations/phase2a": typeof migrations_phase2a;
   "migrations/phase2b": typeof migrations_phase2b;
+  "migrations/relationProjection": typeof migrations_relationProjection;
   notifications: typeof notifications;
   pluginDiagnostics: typeof pluginDiagnostics;
   plugins: typeof plugins;

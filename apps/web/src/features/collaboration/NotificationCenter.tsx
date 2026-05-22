@@ -30,7 +30,8 @@ export function NotificationCenter({
     ...notificationsOptions,
     enabled: hydrated && auth.isAuthenticated,
   })
-  const notifications = (notificationsQuery.data?.items ?? []) as NotificationData[]
+  const notifications = (notificationsQuery.data?.items ??
+    []) as NotificationData[]
   const unreadNotifications = notificationsQuery.data?.unreadCount ?? 0
   const memberNameByUserId = new Map(
     overview.members.map((member) => [
@@ -107,7 +108,10 @@ export function NotificationCenter({
       },
       search: {
         card: notification.cardId,
-        commentId: notification.kind === 'mention_comment' ? notification.commentId : undefined,
+        commentId:
+          notification.kind === 'mention_comment'
+            ? notification.commentId
+            : undefined,
         focus:
           notification.kind === 'mention_comment'
             ? 'comments'
@@ -122,15 +126,15 @@ export function NotificationCenter({
 
   return (
     <div
-      className="relative border-b border-border-subtle px-3 py-3"
+      className="relative flex h-14 items-center border-b border-border-subtle px-3"
       ref={notificationMenuRef}
     >
       <button
-        className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 hover:bg-surface-sunken"
+        className="group flex w-full items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
         onClick={() => setIsNotificationsOpen((open) => !open)}
         type="button"
       >
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary">
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary">
           <Bell className="h-4 w-4" />
           {unreadNotifications > 0 ? (
             <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-electric-violet px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">
@@ -157,7 +161,7 @@ export function NotificationCenter({
       </button>
 
       {isNotificationsOpen ? (
-        <div className="absolute left-3 right-3 top-full z-30 mt-1 animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
+        <div className="absolute left-3 top-full z-30 mt-1 w-[min(28rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
           <div className="mb-1 flex items-center justify-between px-2 py-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
               Recent
@@ -199,7 +203,8 @@ export function NotificationCenter({
                         {notification.message}
                       </span>
                       <span className="mt-0.5 block text-xs text-text-tertiary">
-                        {memberNameByUserId.get(notification.actorId) ?? 'Someone'}
+                        {memberNameByUserId.get(notification.actorId) ??
+                          'Someone'}
                       </span>
                     </span>
                   </div>

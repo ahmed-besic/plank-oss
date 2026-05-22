@@ -1,7 +1,12 @@
 import { compareOrderKeys, createKeyAfter } from "@plank/domain";
 import { isRequiredBuiltinPluginId } from "@plank/plugin-runtime/server";
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   getOptionalCurrentAuthUser,
@@ -18,7 +23,11 @@ import {
   getWorkspaceExtensionRecords,
   normalizeBoardView,
 } from "./lib/plugins";
-import { deleteRows, requireBoardWithType } from "./lib/cardRuntime";
+import {
+  deleteRows,
+  removeCardRelationProjectionRowsForCard,
+  requireBoardWithType,
+} from "./lib/cardRuntime";
 import {
   cleanupDeletedBoardCardsCollaboration,
   cleanupDeletedBoardCollaborationRows,
@@ -43,10 +52,10 @@ import {
   loadBoardViewFeature,
 } from "./lib/loaders/boardViews";
 import {
+  loadBoardCardDefinitionRows,
   buildCardSummaries,
   buildCardTypeSummaries,
   buildTagSummaries,
-  loadBoardCardRows,
 } from "./lib/loaders/boardCards";
 import {
   getBoardActivityPageForViewer,
@@ -69,7 +78,10 @@ async function upsertBoardMembershipState({
   const existing = await ctx.db
     .query("boardMembershipStates")
     .withIndex("by_workspace_and_board_and_user", (query) =>
-      query.eq("workspaceId", workspaceId).eq("boardId", boardId).eq("userId", userId),
+      query
+        .eq("workspaceId", workspaceId)
+        .eq("boardId", boardId)
+        .eq("userId", userId),
     )
     .unique();
 
@@ -105,7 +117,10 @@ async function upsertBoardHeartbeat({
   const existing = await ctx.db
     .query("boardHeartbeats")
     .withIndex("by_workspace_and_board_and_user", (query) =>
-      query.eq("workspaceId", workspaceId).eq("boardId", boardId).eq("userId", userId),
+      query
+        .eq("workspaceId", workspaceId)
+        .eq("boardId", boardId)
+        .eq("userId", userId),
     )
     .unique();
 
@@ -124,6 +139,179 @@ async function upsertBoardHeartbeat({
   });
 }
 
+async function getBoardFrameForViewer(
+  ctx: QueryCtx,
+  args: {
+    workspaceSlug: string;
+    boardId: Id<"boards">;
+    viewId?: string;
+  },
+) {
+  const access = await getWorkspaceAccessBySlugIfAuthenticated(
+    ctx,
+    args.workspaceSlug,
+  );
+  if (!access) {
+    return null;
+  }
+
+  const { workspace, userId } = access;
+  const authUser = await getOptionalCurrentAuthUser(ctx);
+  const core = await loadBoardCore({
+    ctx,
+    workspaceId: workspace._id,
+    boardId: args.boardId,
+  });
+  if (!core) {
+    return null;
+  }
+  const { board, boardType } = core;
+
+  const [viewFeature, cardDefinitionRows, members] = await Promise.all([
+    loadBoardViewFeature({
+      ctx,
+      workspaceId: workspace._id,
+      boardId: board._id,
+      requestedViewId: args.viewId,
+    }),
+    loadBoardCardDefinitionRows({
+      ctx,
+      workspaceId: workspace._id,
+    }),
+    ctx.db
+      .query("workspaceMembers")
+      .withIndex("by_workspace", (query) =>
+        query.eq("workspaceId", workspace._id),
+      )
+      .collect(),
+  ]);
+
+  return {
+    board: buildBoardSummary({ board, boardType }),
+    boardType: buildBoardTypeSummary(boardType),
+    cardTypes: buildCardTypeSummaries({
+      allCustomFields: cardDefinitionRows.allCustomFields,
+      boardTypeId: board.boardTypeId,
+      registryTypes: cardDefinitionRows.registryTypes,
+    }),
+    tagDefinitions: buildTagSummaries(cardDefinitionRows.tags),
+    members: buildBoardMembers({
+      authUser,
+      members,
+      userId,
+    }),
+    views: buildBoardViewSummaries(viewFeature.visibleViews),
+    activeViewInstanceId: viewFeature.activeView?.instanceId,
+    activeDefinitionViewId: viewFeature.activeView?.definitionViewId,
+    activeViewMode: viewFeature.activeView?.instanceMode,
+    enabledPluginIds: viewFeature.enabledPluginIds,
+    viewerUserId: userId,
+    workspace: {
+      id: workspace._id,
+      name: workspace.name,
+      slug: workspace.slug,
+    },
+  };
+}
+
+async function getBoardCardsForViewer(
+  ctx: QueryCtx,
+  args: {
+    workspaceSlug: string;
+    boardId: Id<"boards">;
+    viewId?: string;
+  },
+) {
+  const access = await getWorkspaceAccessBySlugIfAuthenticated(
+    ctx,
+    args.workspaceSlug,
+  );
+  if (!access) {
+    return null;
+  }
+
+  const { workspace, userId } = access;
+  const core = await loadBoardCore({
+    ctx,
+    workspaceId: workspace._id,
+    boardId: args.boardId,
+  });
+  if (!core) {
+    return null;
+  }
+  const { board } = core;
+
+  const [viewFeature, registryTypes, collaborationRows] = await Promise.all([
+    loadBoardViewFeature({
+      ctx,
+      workspaceId: workspace._id,
+      boardId: board._id,
+      requestedViewId: args.viewId,
+    }),
+    ctx.db
+      .query("cardTypeRegistry")
+      .withIndex("by_workspace", (query) =>
+        query.eq("workspaceId", workspace._id),
+      )
+      .collect(),
+    loadBoardCollaborationRows({
+      ctx,
+      workspaceId: workspace._id,
+      boardId: board._id,
+      userId,
+    }),
+  ]);
+  const activeScopeId = viewFeature.activeScopeId;
+  const scopedCards =
+    activeScopeId === "shared"
+      ? (
+          await ctx.db
+            .query("cards")
+            .withIndex("by_board", (query) => query.eq("boardId", board._id))
+            .collect()
+        ).filter((card) => getCardScopeId(card) === activeScopeId)
+      : await ctx.db
+          .query("cards")
+          .withIndex("by_board_scope", (query) =>
+            query.eq("boardId", board._id).eq("scopeId", activeScopeId),
+          )
+          .collect();
+  const cardDigestByCardId = buildCardDigestByCardId(
+    collaborationRows.cardDigests,
+  );
+  const cardSeenAtByCardId = buildCardSeenAtByCardId(
+    collaborationRows.cardSeenStates,
+  );
+
+  return {
+    cards: buildCardSummaries({
+      activeScopeId,
+      cardDigestByCardId,
+      cardSeenAtByCardId,
+      cards: scopedCards,
+      registryTypes,
+    }),
+  };
+}
+
+export const getBoardFrame = query({
+  args: {
+    workspaceSlug: v.string(),
+    boardId: v.id("boards"),
+    viewId: v.optional(v.string()),
+  },
+  handler: getBoardFrameForViewer,
+});
+
+export const getBoardCards = query({
+  args: {
+    workspaceSlug: v.string(),
+    boardId: v.id("boards"),
+    viewId: v.optional(v.string()),
+  },
+  handler: getBoardCardsForViewer,
+});
+
 export const getBoardPage = query({
   args: {
     workspaceSlug: v.string(),
@@ -131,85 +319,14 @@ export const getBoardPage = query({
     viewId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const access = await getWorkspaceAccessBySlugIfAuthenticated(
-      ctx,
-      args.workspaceSlug,
-    );
-    if (!access) {
-      return null;
-    }
-
-    const { workspace, userId } = access;
-    const authUser = await getOptionalCurrentAuthUser(ctx);
-    const core = await loadBoardCore({
-      ctx,
-      workspaceId: workspace._id,
-      boardId: args.boardId,
-    });
-    if (!core) {
-      return null;
-    }
-    const { board, boardType } = core;
-
-    const [viewFeature, cardRows, collaborationRows] = await Promise.all([
-      loadBoardViewFeature({
-        ctx,
-        workspaceId: workspace._id,
-        boardId: board._id,
-        requestedViewId: args.viewId,
-      }),
-      loadBoardCardRows({
-        ctx,
-        workspaceId: workspace._id,
-        boardId: board._id,
-      }),
-      loadBoardCollaborationRows({
-        ctx,
-        workspaceId: workspace._id,
-        boardId: board._id,
-        userId,
-      }),
+    const [frame, cards] = await Promise.all([
+      getBoardFrameForViewer(ctx, args),
+      getBoardCardsForViewer(ctx, args),
     ]);
-    const cardDigestByCardId = buildCardDigestByCardId(
-      collaborationRows.cardDigests,
-    );
-    const cardSeenAtByCardId = buildCardSeenAtByCardId(
-      collaborationRows.cardSeenStates,
-    );
-
-    return {
-      board: buildBoardSummary({ board, boardType }),
-      boardType: buildBoardTypeSummary(boardType),
-      cardTypes: buildCardTypeSummaries({
-        allCustomFields: cardRows.allCustomFields,
-        boardTypeId: board.boardTypeId,
-        registryTypes: cardRows.registryTypes,
-      }),
-      tagDefinitions: buildTagSummaries(cardRows.tags),
-      members: buildBoardMembers({
-        authUser,
-        members: collaborationRows.members,
-        userId,
-      }),
-      cards: buildCardSummaries({
-        activeScopeId: viewFeature.activeScopeId,
-        cardDigestByCardId,
-        cardSeenAtByCardId,
-        cards: cardRows.cards,
-        registryTypes: cardRows.registryTypes,
-      }),
-      views: buildBoardViewSummaries(viewFeature.visibleViews),
-      activeViewInstanceId: viewFeature.activeView?.instanceId,
-      activeDefinitionViewId: viewFeature.activeView?.definitionViewId,
-      activeViewMode: viewFeature.activeView?.instanceMode,
-      enabledPluginIds: viewFeature.enabledPluginIds,
-      viewerUserId: userId,
-      workspace: {
-        id: workspace._id,
-        name: workspace.name,
-        slug: workspace.slug,
-      },
-    };
+    if (!frame || !cards) {
+      return null;
+    }
+    return { ...frame, cards: cards.cards };
   },
 });
 
@@ -236,7 +353,8 @@ export const updateBoardViewConfig = mutation({
       .withIndex("by_board", (query) => query.eq("boardId", board._id))
       .collect();
     const view = views.find(
-      (candidate) => normalizeBoardView(candidate).instanceId === args.instanceId,
+      (candidate) =>
+        normalizeBoardView(candidate).instanceId === args.instanceId,
     );
 
     if (!view) {
@@ -292,7 +410,9 @@ export const addBoardView = mutation({
       const extension = await ctx.db
         .query("workspaceExtensions")
         .withIndex("by_workspace_plugin", (query) =>
-          query.eq("workspaceId", workspace._id).eq("pluginId", plugin.manifest.id),
+          query
+            .eq("workspaceId", workspace._id)
+            .eq("pluginId", plugin.manifest.id),
         )
         .unique();
       if (!extension || extension.status !== "enabled") {
@@ -378,7 +498,8 @@ export const removeBoardView = mutation({
     }
 
     const view = views.find(
-      (candidate) => normalizeBoardView(candidate).instanceId === args.instanceId,
+      (candidate) =>
+        normalizeBoardView(candidate).instanceId === args.instanceId,
     );
     if (!view) {
       return { ok: true };
@@ -392,11 +513,15 @@ export const removeBoardView = mutation({
           .withIndex("by_board", (query) => query.eq("boardId", board._id))
           .collect()
       ).filter((card) => getCardScopeId(card) === normalizedView.instanceId);
-      const privateCardIds = new Set(privateCards.map((card) => String(card._id)));
+      const privateCardIds = new Set(
+        privateCards.map((card) => String(card._id)),
+      );
 
       const workspaceCards = await ctx.db
         .query("cards")
-        .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
+        .withIndex("by_workspace", (query) =>
+          query.eq("workspaceId", workspace._id),
+        )
         .collect();
       for (const candidate of workspaceCards) {
         if (privateCardIds.has(String(candidate._id))) {
@@ -480,6 +605,11 @@ export const removeBoardView = mutation({
         ctx,
       );
       for (const card of privateCards) {
+        await removeCardRelationProjectionRowsForCard({
+          ctx,
+          workspaceId: workspace._id,
+          cardId: card._id,
+        });
         await ctx.db.delete(card._id);
       }
     }
@@ -490,7 +620,9 @@ export const removeBoardView = mutation({
       const nextDefault = views
         .filter((candidate) => candidate._id !== view._id)
         .map(normalizeBoardView)
-        .sort((left, right) => compareOrderKeys(left.orderKey, right.orderKey))[0];
+        .sort((left, right) =>
+          compareOrderKeys(left.orderKey, right.orderKey),
+        )[0];
       if (nextDefault?._id) {
         await ctx.db.patch(nextDefault._id, {
           isDefault: true,
@@ -654,7 +786,9 @@ export const deleteBoard = mutation({
 
     const workspaceCards = await ctx.db
       .query("cards")
-      .withIndex("by_workspace", (query) => query.eq("workspaceId", workspace._id))
+      .withIndex("by_workspace", (query) =>
+        query.eq("workspaceId", workspace._id),
+      )
       .collect();
     for (const candidate of workspaceCards) {
       if (cardIds.has(String(candidate._id))) {
