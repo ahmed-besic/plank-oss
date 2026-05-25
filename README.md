@@ -1,20 +1,35 @@
 # Plank
 
-Plank is an open-source, Convex-powered team workflow app with realtime boards,
-typed cards, local plugins, and a deterministic automation engine.
+Plank is an open-source, team workflow app where the main goal is not excessive features, having a powerful board, but a simple core with a powerful plugin system and a automation engine, built on top of Convex.
+
+So teams can make their own workflow how they like and thats it, no more, no less.
+
+
 
 ## Why this exists
 
-This started after watching Theo T3 talk about why he uses Notion over Obsidian.
+This started after watching Theo T3 talk about whsy he uses Notion over Obsidian.
 As someone who has been using VS Code for a long time and who recently tried the Pi coding agent, I kept
 thinking about a team collaboration platform that is extensible at its core.
 Plank is my vision of that: a solid base that teams can shape
 with plugins to fit how they actually work.
 
-<div style="border-left: 4px solid #2563eb; background: #eff6ff; padding: 12px 14px; margin: 12px 0;">
+<div style="border-left: 4px solid #2563eb; background: #000000; padding: 12px 14px; margin: 12px 0;">
   <strong>Feedback welcome:</strong> This is my first open-source project, and I would really value your help.
   If I got something right, got something terribly wrong, missed important pieces, or overlooked optimizations and improvements, please tell me.
 </div>
+
+![Plank board overview](assets/images/CleanShot%202026-05-25%20at%2001.53.09@2x.png "Plank Board Overview")
+**Plank Board Overview** - Main interface showing the layout.
+- **kanban** is just a plugin if you dont like it make your own, and thats the point.
+
+---
+![Automation panel](assets/images/automation.png)
+**Automation Panel** - Interface for creating and managing automation rules.
+
+---
+![Plugins](assets/images/plugins.png)
+**Plugins** - Interface for managing plugins.
 
 ## Alpha status
 
@@ -31,6 +46,8 @@ Current auth is intentionally simple for development velocity and is **not secur
 - minimal checks and guardrails are implemented today
 - threat modeling and full security review are still pending
 - treat this as a development/demo setup, not production-grade auth
+
+
 
 ## Current product state
 
