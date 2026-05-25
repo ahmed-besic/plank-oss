@@ -826,10 +826,10 @@ export function WorkspaceShell({
           </nav>
 
           {/* Bottom actions */}
-          <div className="shrink-0 border-t border-border-subtle px-3 py-3">
+          <div className="shrink-0 flex h-14 items-center border-t border-border-subtle px-3">
             <Link
               className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                'flex w-full items-center gap-3 rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-200',
                 section === 'settings'
                   ? 'bg-electric-violet/10 text-electric-violet'
                   : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
