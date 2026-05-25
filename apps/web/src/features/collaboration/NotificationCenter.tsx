@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useConvexAuth } from 'convex/react'
 import { Bell, ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '@convex/_generated/api'
 import { cn } from '@plank/ui'
 import { getMemberDisplayName } from '../../lib/member-display'
@@ -21,7 +22,14 @@ export function NotificationCenter({
   const navigate = useNavigate()
   const { convexClient, queryClient } = usePlankApp()
   const notificationMenuRef = useRef<HTMLDivElement>(null)
+  const notificationPanelRef = useRef<HTMLDivElement>(null)
+  const notificationTriggerRef = useRef<HTMLButtonElement>(null)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [panelPosition, setPanelPosition] = useState<{
+    left: number
+    top: number
+    width: number
+  } | null>(null)
   const notificationsOptions = convexQuery(api.notifications.listMine, {
     workspaceSlug: overview.workspace.slug,
     limit: 12,
@@ -69,13 +77,51 @@ export function NotificationCenter({
 
   useEffect(() => {
     if (!isNotificationsOpen) {
+      setPanelPosition(null)
+      return
+    }
+
+    const updatePanelPosition = () => {
+      const trigger = notificationTriggerRef.current
+      if (!trigger) {
+        return
+      }
+
+      const rect = trigger.getBoundingClientRect()
+      const maxWidth = 448
+      const width = Math.min(maxWidth, window.innerWidth - rect.left - 16)
+
+      setPanelPosition({
+        left: rect.left,
+        top: rect.bottom + 4,
+        width: Math.max(width, rect.width),
+      })
+    }
+
+    updatePanelPosition()
+    window.addEventListener('resize', updatePanelPosition)
+    window.addEventListener('scroll', updatePanelPosition, true)
+
+    return () => {
+      window.removeEventListener('resize', updatePanelPosition)
+      window.removeEventListener('scroll', updatePanelPosition, true)
+    }
+  }, [isNotificationsOpen])
+
+  useEffect(() => {
+    if (!isNotificationsOpen) {
       return
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!notificationMenuRef.current?.contains(event.target as Node)) {
-        setIsNotificationsOpen(false)
+      const target = event.target as Node
+      if (
+        notificationMenuRef.current?.contains(target) ||
+        notificationPanelRef.current?.contains(target)
+      ) {
+        return
       }
+      setIsNotificationsOpen(false)
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -130,6 +176,7 @@ export function NotificationCenter({
       ref={notificationMenuRef}
     >
       <button
+        ref={notificationTriggerRef}
         className="group flex w-full items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
         onClick={() => setIsNotificationsOpen((open) => !open)}
         type="button"
@@ -160,64 +207,75 @@ export function NotificationCenter({
         />
       </button>
 
-      {isNotificationsOpen ? (
-        <div className="absolute left-3 top-full z-30 mt-1 w-[min(28rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
-          <div className="mb-1 flex items-center justify-between px-2 py-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-              Recent
-            </p>
-            <button
-              className="text-xs font-semibold text-electric-violet transition hover:opacity-80 disabled:opacity-40"
-              disabled={unreadNotifications === 0 || markAllRead.isPending}
-              onClick={() => void markAllRead.mutateAsync()}
-              type="button"
+      {isNotificationsOpen && panelPosition
+        ? createPortal(
+            <div
+              ref={notificationPanelRef}
+              className="fixed z-50 max-h-[min(24rem,calc(100vh-6rem))] animate-scale-in overflow-y-auto rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated"
+              style={{
+                left: panelPosition.left,
+                top: panelPosition.top,
+                width: panelPosition.width,
+              }}
             >
-              Mark all read
-            </button>
-          </div>
-          <div className="space-y-1">
-            {notifications.length ? (
-              notifications.map((notification) => (
+              <div className="mb-1 flex items-center justify-between px-2 py-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
+                  Recent
+                </p>
                 <button
-                  key={notification._id}
-                  className={cn(
-                    'w-full rounded-xl px-3 py-2.5 text-left transition-all duration-150',
-                    notification.readAt
-                      ? 'text-text-secondary hover:bg-surface-sunken'
-                      : 'bg-electric-violet/8 text-text-primary hover:bg-electric-violet/12',
-                  )}
-                  onClick={() => void openNotification(notification)}
+                  className="text-xs font-semibold text-electric-violet transition hover:opacity-80 disabled:opacity-40"
+                  disabled={unreadNotifications === 0 || markAllRead.isPending}
+                  onClick={() => void markAllRead.mutateAsync()}
                   type="button"
                 >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={cn(
-                        'mt-1 h-2 w-2 shrink-0 rounded-full',
-                        notification.readAt
-                          ? 'bg-border-subtle'
-                          : 'bg-electric-violet',
-                      )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block break-words text-sm font-medium">
-                        {notification.message}
-                      </span>
-                      <span className="mt-0.5 block text-xs text-text-tertiary">
-                        {memberNameByUserId.get(notification.actorId) ??
-                          'Someone'}
-                      </span>
-                    </span>
-                  </div>
+                  Mark all read
                 </button>
-              ))
-            ) : (
-              <div className="rounded-xl border border-dashed border-border-subtle px-3 py-6 text-center text-sm text-text-tertiary">
-                No notifications yet.
               </div>
-            )}
-          </div>
-        </div>
-      ) : null}
+              <div className="space-y-1">
+                {notifications.length ? (
+                  notifications.map((notification) => (
+                    <button
+                      key={notification._id}
+                      className={cn(
+                        'w-full rounded-xl px-3 py-2.5 text-left transition-all duration-150',
+                        notification.readAt
+                          ? 'text-text-secondary hover:bg-surface-sunken'
+                          : 'bg-electric-violet/8 text-text-primary hover:bg-electric-violet/12',
+                      )}
+                      onClick={() => void openNotification(notification)}
+                      type="button"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span
+                          className={cn(
+                            'mt-1 h-2 w-2 shrink-0 rounded-full',
+                            notification.readAt
+                              ? 'bg-border-subtle'
+                              : 'bg-electric-violet',
+                          )}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words text-sm font-medium">
+                            {notification.message}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-text-tertiary">
+                            {memberNameByUserId.get(notification.actorId) ??
+                              'Someone'}
+                          </span>
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border-subtle px-3 py-6 text-center text-sm text-text-tertiary">
+                    No notifications yet.
+                  </div>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

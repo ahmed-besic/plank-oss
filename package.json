@@ -20,13 +20,6 @@
     "convex:codegen": "convex codegen",
     "scan:secrets": "rg -n --hidden --glob \"!.git\" --glob \"!node_modules\" --glob \"!.pnpm-store\" --glob \"!package.json\" \"(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|AIza[0-9A-Za-z-_]{35}|xox[baprs]-|BEGIN RSA PRIVATE KEY|BEGIN OPENSSH PRIVATE KEY)\" . && exit 1 || exit 0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss",
-      "unrs-resolver"
-    ]
-  },
   "devDependencies": {
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.2",
