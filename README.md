@@ -1,11 +1,14 @@
 # Plank
 
-Plank is an open-source, team workflow app where the main goal is not excessive features, having a powerful board, but a simple core with a powerful plugin system and a automation engine, built on top of Convex.
+## The workflow app *you* customize
 
-So teams can make their own workflow how they like and thats it, no more, no less.
+Plank is an open-source, self-hostable workflow tool built on Convex. Instead of bloated features, we give you:
 
+- **A powerful core** – everything you need, nothing you don't
+- **Plugins** – extend it exactly how your team works
+- **Automations** – build your workflow your way
 
-
+No more forcing your process into someone else's tool.
 ## Why this exists
 
 This started after watching Theo T3 talk about whsy he uses Notion over Obsidian.
