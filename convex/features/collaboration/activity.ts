@@ -1,3 +1,4 @@
+import { canViewerAccessBoard } from "@plank/domain";
 import type { Doc, Id } from "../../_generated/dataModel";
 import type { QueryCtx } from "../../_generated/server";
 import {
@@ -61,7 +62,11 @@ export async function listBoardPresenceForViewer(
 
   const { workspace, userId } = access;
   const board = await ctx.db.get(args.boardId);
-  if (!board || board.workspaceId !== workspace._id) {
+  if (
+    !board ||
+    board.workspaceId !== workspace._id ||
+    !canViewerAccessBoard(board, userId)
+  ) {
     return { items: [] };
   }
 
@@ -122,9 +127,13 @@ export async function getBoardActivityPageForViewer(
     return null;
   }
 
-  const { workspace } = access;
+  const { workspace, userId } = access;
   const board = await ctx.db.get(args.boardId);
-  if (!board || board.workspaceId !== workspace._id) {
+  if (
+    !board ||
+    board.workspaceId !== workspace._id ||
+    !canViewerAccessBoard(board, userId)
+  ) {
     return { items: [], nextCursor: null };
   }
 

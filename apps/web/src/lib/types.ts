@@ -39,6 +39,8 @@ export interface WorkspaceOverviewData {
     slug: string
     workspaceId: string
     boardTypeId: string
+    visibility?: 'workspace' | 'private'
+    viewerIsOwner?: boolean
     viewerSeenAt?: number
     latestExternalChange?: {
       actorId?: string
@@ -170,6 +172,8 @@ export interface BoardPageData {
     name: string
     workspaceId: string
     boardTypeId: string
+    visibility?: 'workspace' | 'private'
+    viewerIsOwner?: boolean
     columns: Array<{
       id: string
       statusKey: string

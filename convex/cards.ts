@@ -1,4 +1,5 @@
 import {
+  canViewerAccessBoard,
   createKeyAfter,
   createKeyBetween,
   extractBodyMentions,
@@ -97,12 +98,16 @@ export const generateCardUploadUrl = mutation({
     boardId: v.id("boards"),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
     const board = await ctx.db.get(args.boardId);
-    if (!board || board.workspaceId !== workspace._id) {
+    if (
+      !board ||
+      board.workspaceId !== workspace._id ||
+      !canViewerAccessBoard(board, userId)
+    ) {
       throw new Error("Board not found");
     }
     const uploadUrl = await ctx.storage.generateUploadUrl();
@@ -117,12 +122,16 @@ export const resolveCardFileUrl = query({
     storageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
     const board = await ctx.db.get(args.boardId);
-    if (!board || board.workspaceId !== workspace._id) {
+    if (
+      !board ||
+      board.workspaceId !== workspace._id ||
+      !canViewerAccessBoard(board, userId)
+    ) {
       throw new Error("Board not found");
     }
     const url = await ctx.storage.getUrl(args.storageId);
@@ -151,6 +160,7 @@ export const createCard = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
     const boardViews = await ctx.db
       .query("boardViews")
@@ -240,6 +250,7 @@ export const createSubTask = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
     const parent = await ctx.db.get(args.parentId);
     if (
@@ -366,12 +377,16 @@ export const getCardRelations = query({
     cardId: v.id("cards"),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
     const board = await ctx.db.get(args.boardId);
-    if (!board || board.workspaceId !== workspace._id) {
+    if (
+      !board ||
+      board.workspaceId !== workspace._id ||
+      !canViewerAccessBoard(board, userId)
+    ) {
       return { outgoing: [], incoming: [] };
     }
     const card = await ctx.db.get(args.cardId);
@@ -575,6 +590,7 @@ export const moveCard = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     const card = await ctx.db.get(args.cardId);
@@ -645,6 +661,7 @@ export const updateCard = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
     const card = await requireCardInBoard({
       ctx,

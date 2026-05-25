@@ -1,3 +1,4 @@
+import { canViewerAccessBoard } from "@plank/domain";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getWorkspaceAccessBySlugIfAuthenticated } from "./lib/auth";
@@ -27,7 +28,11 @@ export const searchBoardTitles = query({
     }
 
     const board = await ctx.db.get(args.boardId);
-    if (!board || board.workspaceId !== access.workspace._id) {
+    if (
+      !board ||
+      board.workspaceId !== access.workspace._id ||
+      !canViewerAccessBoard(board, access.userId)
+    ) {
       return [];
     }
 
@@ -93,17 +98,24 @@ export const searchWorkspaceCardTitles = query({
 
     const filtered = results.filter((card) => card._id !== args.excludeCardId);
     const boardsById = new Map<string, { name: string }>();
+    const accessibleCards = [];
     for (const card of filtered) {
       if (boardsById.has(card.boardId)) {
+        accessibleCards.push(card);
         continue;
       }
       const board = await ctx.db.get(card.boardId);
-      if (board && board.workspaceId === access.workspace._id) {
+      if (
+        board &&
+        board.workspaceId === access.workspace._id &&
+        canViewerAccessBoard(board, access.userId)
+      ) {
         boardsById.set(card.boardId, { name: board.name });
+        accessibleCards.push(card);
       }
     }
 
-    return filtered.map((card) => ({
+    return accessibleCards.map((card) => ({
       id: card._id,
       title: card.meta.title,
       boardId: card.boardId,

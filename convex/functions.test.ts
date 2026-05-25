@@ -16,6 +16,7 @@ import {
   listBoardPresence,
   markBoardSeen,
   renameBoard,
+  setBoardVisibility,
   updateBoardViewConfig,
 } from "./boards";
 import {
@@ -1974,6 +1975,75 @@ describe("workspace and search functions", () => {
       revokedAt: expect.any(Number),
       revokedBy: "user_1",
     });
+  });
+
+  it("hides private boards from other workspace members", async () => {
+    const db = createBaseDb();
+    const ownerCtx = createMockCtx({ db });
+    const memberCtx = createMockCtx({
+      db,
+      email: "teammate@example.com",
+      tokenIdentifier: "user_2",
+    });
+
+    const created = await (
+      createBoard as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<{ boardId: string }>
+    )(ownerCtx, {
+      workspaceSlug: "acme",
+      name: "Personal notes",
+      boardTypeId: "boardType_1",
+      isPrivate: true,
+    });
+
+    expect(
+      db.rows("boards").find((board) => board._id === created.boardId),
+    ).toMatchObject({
+      visibility: "private",
+      createdBy: "user_1",
+    });
+
+    const ownerOverview = await (
+      getOverview as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ownerCtx, { workspaceSlug: "acme" });
+    const memberOverview = await (
+      getOverview as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(memberCtx, { workspaceSlug: "acme" });
+
+    expect(ownerOverview.boards.map((board: { id: string }) => board.id)).toContain(
+      created.boardId,
+    );
+    expect(memberOverview.boards.map((board: { id: string }) => board.id)).not.toContain(
+      created.boardId,
+    );
+
+    const memberPage = await (
+      getBoardPage as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(memberCtx, {
+      workspaceSlug: "acme",
+      boardId: created.boardId,
+    });
+    expect(memberPage).toBeNull();
+
+    await (
+      setBoardVisibility as unknown as (
+        ctx: unknown,
+        args: unknown,
+      ) => Promise<unknown>
+    )(ownerCtx, {
+      workspaceSlug: "acme",
+      boardId: created.boardId,
+      visibility: "workspace",
+    });
+
+    const memberOverviewAfterShare = await (
+      getOverview as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(memberCtx, { workspaceSlug: "acme" });
+    expect(
+      memberOverviewAfterShare.boards.map((board: { id: string }) => board.id),
+    ).toContain(created.boardId);
   });
 
   it("searches card titles within a board", async () => {

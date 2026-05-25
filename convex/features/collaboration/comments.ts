@@ -85,6 +85,7 @@ export async function listCommentsForCard(
     ctx,
     workspaceId: workspace._id,
     boardId: args.boardId,
+    viewerUserId: userId,
   });
   await requireCardInBoard({
     ctx,
@@ -152,6 +153,7 @@ export async function createComment(
     ctx,
     workspaceId: workspace._id,
     boardId: args.boardId,
+    viewerUserId: userId,
   });
   const card = await requireCardInBoard({
     ctx,

@@ -161,6 +161,7 @@ async function getBoardFrameForViewer(
     ctx,
     workspaceId: workspace._id,
     boardId: args.boardId,
+    viewerUserId: userId,
   });
   if (!core) {
     return null;
@@ -187,7 +188,7 @@ async function getBoardFrameForViewer(
   ]);
 
   return {
-    board: buildBoardSummary({ board, boardType }),
+    board: buildBoardSummary({ board, boardType, viewerUserId: userId }),
     boardType: buildBoardTypeSummary(boardType),
     cardTypes: buildCardTypeSummaries({
       allCustomFields: cardDefinitionRows.allCustomFields,
@@ -235,6 +236,7 @@ async function getBoardCardsForViewer(
     ctx,
     workspaceId: workspace._id,
     boardId: args.boardId,
+    viewerUserId: userId,
   });
   if (!core) {
     return null;
@@ -338,7 +340,7 @@ export const updateBoardViewConfig = mutation({
     config: boardViewConfigValueValidator,
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
@@ -346,6 +348,7 @@ export const updateBoardViewConfig = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     const views = await ctx.db
@@ -382,7 +385,7 @@ export const addBoardView = mutation({
     instanceMode: v.union(v.literal("shared"), v.literal("private")),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
@@ -390,6 +393,7 @@ export const addBoardView = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     const definition = getViewDefinitionById(args.definitionViewId);
@@ -479,7 +483,7 @@ export const removeBoardView = mutation({
     instanceId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
@@ -487,6 +491,7 @@ export const removeBoardView = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     const views = await ctx.db
@@ -649,6 +654,7 @@ export const markBoardSeen = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     await upsertBoardMembershipState({
@@ -677,6 +683,7 @@ export const heartbeatBoardPresence = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     await upsertBoardHeartbeat({
@@ -715,10 +722,16 @@ export const syncPluginViews = mutation({
     boardId: v.id("boards"),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
+    await requireBoardWithType({
+      ctx,
+      workspaceId: workspace._id,
+      boardId: args.boardId,
+      viewerUserId: userId,
+    });
     const installed = await getWorkspaceExtensionRecords(ctx, workspace._id);
     await ensureBoardViewsForBoard(
       ctx,
@@ -732,14 +745,14 @@ export const syncPluginViews = mutation({
   },
 });
 
-export const renameBoard = mutation({
+export const setBoardVisibility = mutation({
   args: {
     workspaceSlug: v.string(),
     boardId: v.id("boards"),
-    name: v.string(),
+    visibility: v.union(v.literal("workspace"), v.literal("private")),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
@@ -747,6 +760,37 @@ export const renameBoard = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
+    });
+    if (board.createdBy !== userId) {
+      throw new Error("Only the board owner can change visibility");
+    }
+
+    await ctx.db.patch(board._id, {
+      visibility: args.visibility,
+      updatedAt: Date.now(),
+    });
+
+    return { boardId: board._id, visibility: args.visibility };
+  },
+});
+
+export const renameBoard = mutation({
+  args: {
+    workspaceSlug: v.string(),
+    boardId: v.id("boards"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
+      ctx,
+      args.workspaceSlug,
+    );
+    const { board } = await requireBoardWithType({
+      ctx,
+      workspaceId: workspace._id,
+      boardId: args.boardId,
+      viewerUserId: userId,
     });
     const name = args.name.trim();
     if (!name) {
@@ -768,7 +812,7 @@ export const deleteBoard = mutation({
     boardId: v.id("boards"),
   },
   handler: async (ctx, args) => {
-    const { workspace } = await requireWorkspaceAccessBySlug(
+    const { userId, workspace } = await requireWorkspaceAccessBySlug(
       ctx,
       args.workspaceSlug,
     );
@@ -776,6 +820,7 @@ export const deleteBoard = mutation({
       ctx,
       workspaceId: workspace._id,
       boardId: args.boardId,
+      viewerUserId: userId,
     });
 
     const cards = await ctx.db

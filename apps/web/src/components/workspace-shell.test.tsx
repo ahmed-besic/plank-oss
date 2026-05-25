@@ -69,6 +69,7 @@ vi.mock('@convex/_generated/api', () => ({
       deleteBoard: {},
       getBoardPage: {},
       renameBoard: {},
+      setBoardVisibility: {},
     },
     workspaces: {
       createBoard: {},

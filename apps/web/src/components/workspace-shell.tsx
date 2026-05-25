@@ -6,6 +6,7 @@ import { cn } from '@plank/ui'
 import {
   ChevronDown,
   CircleDot,
+  Lock,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api } from '@convex/_generated/api'
 import type { WorkspaceOverviewData } from '../lib/types'
 import { useHydrated } from '../lib/use-hydrated'
@@ -31,6 +33,7 @@ import {
 import { useWorkspaceShellLayout } from './use-workspace-shell-layout'
 
 const COLLAPSED_SIDEBAR_WIDTH = 56
+const CREATE_BOARD_MENU_WIDTH = 352
 
 export function WorkspaceShell({
   activeBoardId,
@@ -53,7 +56,12 @@ export function WorkspaceShell({
   const { convexClient, pluginRegistry, queryClient } = usePlankApp()
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const boardMenuRef = useRef<HTMLDivElement>(null)
-  const createBoardMenuRef = useRef<HTMLDivElement>(null)
+  const createBoardButtonRef = useRef<HTMLButtonElement>(null)
+  const createBoardMenuPanelRef = useRef<HTMLDivElement>(null)
+  const [createBoardMenuPosition, setCreateBoardMenuPosition] = useState({
+    left: 0,
+    top: 0,
+  })
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
   const [isCreateBoardMenuOpen, setIsCreateBoardMenuOpen] = useState(false)
   const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false)
@@ -62,6 +70,7 @@ export function WorkspaceShell({
   const [newBoardTypeId, setNewBoardTypeId] = useState(
     overview.boardTypes[0]?.id ?? '',
   )
+  const [newBoardIsPrivate, setNewBoardIsPrivate] = useState(false)
   const {
     isSidebarHidden,
     setIsSidebarHidden,
@@ -119,6 +128,25 @@ export function WorkspaceShell({
       })
     },
   })
+  const setBoardVisibility = useMutation({
+    mutationFn: async ({
+      boardId,
+      visibility,
+    }: {
+      boardId: string
+      visibility: 'workspace' | 'private'
+    }) =>
+      convexClient.mutation(api.boards.setBoardVisibility, {
+        workspaceSlug: overview.workspace.slug,
+        boardId: boardId as never,
+        visibility,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: overviewOptions.queryKey,
+      })
+    },
+  })
   const deleteBoard = useMutation({
     mutationFn: async (boardId: string) =>
       convexClient.mutation((api.boards as any).deleteBoard, {
@@ -147,6 +175,7 @@ export function WorkspaceShell({
         workspaceSlug: overview.workspace.slug,
         name: newBoardName.trim(),
         boardTypeId: selectedNewBoardType.id as never,
+        isPrivate: newBoardIsPrivate,
       })
       return {
         ...board,
@@ -155,6 +184,7 @@ export function WorkspaceShell({
     },
     onSuccess: async (result) => {
       setNewBoardName('New board')
+      setNewBoardIsPrivate(false)
       setIsCreateBoardMenuOpen(false)
       await queryClient.invalidateQueries({
         queryKey: overviewOptions.queryKey,
@@ -270,15 +300,46 @@ export function WorkspaceShell({
     }
   }, [openBoardMenuId])
 
+  const updateCreateBoardMenuPosition = () => {
+    const rect = createBoardButtonRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return
+    }
+
+    const menuWidth = Math.min(
+      CREATE_BOARD_MENU_WIDTH,
+      window.innerWidth - 16,
+    )
+    const viewportPadding = 8
+    let left = rect.right + viewportPadding
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = Math.max(viewportPadding, rect.left - menuWidth)
+    }
+
+    setCreateBoardMenuPosition({
+      left,
+      top: Math.max(viewportPadding, rect.top),
+    })
+  }
+
   useEffect(() => {
     if (!isCreateBoardMenuOpen) {
       return
     }
 
+    updateCreateBoardMenuPosition()
+    window.addEventListener('resize', updateCreateBoardMenuPosition)
+    window.addEventListener('scroll', updateCreateBoardMenuPosition, true)
+
     const handlePointerDown = (event: PointerEvent) => {
-      if (!createBoardMenuRef.current?.contains(event.target as Node)) {
-        setIsCreateBoardMenuOpen(false)
+      const target = event.target as Node
+      if (
+        createBoardButtonRef.current?.contains(target) ||
+        createBoardMenuPanelRef.current?.contains(target)
+      ) {
+        return
       }
+      setIsCreateBoardMenuOpen(false)
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -291,10 +352,22 @@ export function WorkspaceShell({
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
+      window.removeEventListener('resize', updateCreateBoardMenuPosition)
+      window.removeEventListener('scroll', updateCreateBoardMenuPosition, true)
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [isCreateBoardMenuOpen])
+
+  const toggleCreateBoardMenu = () => {
+    setIsCreateBoardMenuOpen((open) => {
+      const next = !open
+      if (next) {
+        requestAnimationFrame(updateCreateBoardMenuPosition)
+      }
+      return next
+    })
+  }
 
   const switchWorkspace = (workspaceSlug: string) => {
     setIsWorkspaceMenuOpen(false)
@@ -336,6 +409,23 @@ export function WorkspaceShell({
       return
     }
     void deleteBoard.mutateAsync(boardId)
+  }
+
+  const requestToggleBoardVisibility = (
+    boardId: string,
+    boardName: string,
+    visibility: 'workspace' | 'private',
+  ) => {
+    setOpenBoardMenuId(null)
+    const nextVisibility = visibility === 'private' ? 'workspace' : 'private'
+    const message =
+      nextVisibility === 'private'
+        ? `Make "${boardName}" private?\n\nOnly you will be able to see this board. Other workspace members will not see it.`
+        : `Share "${boardName}" with the workspace?\n\nAll workspace members will be able to see this board in the sidebar.`
+    if (!window.confirm(message) || setBoardVisibility.isPending) {
+      return
+    }
+    void setBoardVisibility.mutateAsync({ boardId, visibility: nextVisibility })
   }
 
   const requestCreateWorkspace = () => {
@@ -587,68 +677,17 @@ export function WorkspaceShell({
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
                 Boards
               </p>
-              <div className="relative" ref={createBoardMenuRef}>
-                <button
-                  aria-label="Create board"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
-                  onClick={() => setIsCreateBoardMenuOpen((open) => !open)}
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                {isCreateBoardMenuOpen ? (
-                  <div
-                    className="absolute left-0 top-8 z-40 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-3 text-sm shadow-elevated"
-                    onPointerDown={(event) => event.stopPropagation()}
-                  >
-                    <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                      New board
-                    </p>
-                    <label className="mt-3 block text-xs font-semibold text-text-secondary">
-                      Board type
-                    </label>
-                    <select
-                      className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
-                      disabled={overview.boardTypes.length === 0}
-                      onChange={(event) =>
-                        setNewBoardTypeId(event.target.value)
-                      }
-                      value={newBoardTypeId}
-                    >
-                      {overview.boardTypes.map((boardType) => (
-                        <option key={boardType.id} value={boardType.id}>
-                          {boardType.name}
-                        </option>
-                      ))}
-                    </select>
-                    <label className="mt-3 block text-xs font-semibold text-text-secondary">
-                      Name
-                    </label>
-                    <input
-                      className="mt-1 w-full rounded-xl border border-border-subtle bg-cloud-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
-                      onChange={(event) => setNewBoardName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          requestCreateBoard()
-                        }
-                      }}
-                      value={newBoardName}
-                    />
-                    <button
-                      className="mt-3 flex w-full items-center justify-center rounded-xl bg-electric-violet px-3 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={
-                        !newBoardName.trim() ||
-                        !selectedNewBoardType ||
-                        createBoard.isPending
-                      }
-                      onClick={requestCreateBoard}
-                      type="button"
-                    >
-                      {createBoard.isPending ? 'Creating…' : 'Create board'}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+              <button
+                ref={createBoardButtonRef}
+                aria-expanded={isCreateBoardMenuOpen}
+                aria-haspopup="dialog"
+                aria-label="Create board"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
+                onClick={toggleCreateBoardMenu}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
             {overview.boards.length > 0 ? (
               <>
@@ -680,7 +719,14 @@ export function WorkspaceShell({
                         }}
                         to="/w/$workspaceSlug/boards/$boardId"
                       >
-                        <SquareKanban className="h-[18px] w-[18px] shrink-0" />
+                        {board.visibility === 'private' ? (
+                          <Lock
+                            aria-hidden
+                            className="h-[18px] w-[18px] shrink-0"
+                          />
+                        ) : (
+                          <SquareKanban className="h-[18px] w-[18px] shrink-0" />
+                        )}
                         <span className="truncate">{board.name}</span>
                         {hasUnreadExternal ? (
                           <span
@@ -724,6 +770,25 @@ export function WorkspaceShell({
                             <Pencil className="h-4 w-4" />
                             Rename
                           </button>
+                          {board.viewerIsOwner ? (
+                            <button
+                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-text-secondary transition hover:bg-surface-sunken hover:text-text-primary"
+                              disabled={setBoardVisibility.isPending}
+                              onClick={() =>
+                                requestToggleBoardVisibility(
+                                  board.id,
+                                  board.name,
+                                  board.visibility ?? 'workspace',
+                                )
+                              }
+                              type="button"
+                            >
+                              <Lock className="h-4 w-4" />
+                              {board.visibility === 'private'
+                                ? 'Share with workspace'
+                                : 'Make private'}
+                            </button>
+                          ) : null}
                           <button
                             className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 transition hover:bg-red-50"
                             onClick={() =>
@@ -847,6 +912,86 @@ export function WorkspaceShell({
           </div>
         </main>
       </div>
+      {isCreateBoardMenuOpen && hydrated
+        ? createPortal(
+            <div
+              ref={createBoardMenuPanelRef}
+              className="fixed z-50 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-3 text-sm shadow-elevated"
+              onPointerDown={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-label="New board"
+              style={{
+                left: createBoardMenuPosition.left,
+                top: createBoardMenuPosition.top,
+              }}
+            >
+              <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+                New board
+              </p>
+              <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                Board type
+              </label>
+              <select
+                className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                disabled={overview.boardTypes.length === 0}
+                onChange={(event) => setNewBoardTypeId(event.target.value)}
+                value={newBoardTypeId}
+              >
+                {overview.boardTypes.map((boardType) => (
+                  <option key={boardType.id} value={boardType.id}>
+                    {boardType.name}
+                  </option>
+                ))}
+              </select>
+              <label className="mt-3 block text-xs font-semibold text-text-secondary">
+                Name
+              </label>
+              <input
+                className="mt-1 w-full rounded-xl border border-border-subtle bg-cloud-white px-3 py-2.5 text-sm text-text-primary outline-none transition focus:border-electric-violet focus:shadow-glow-violet"
+                onChange={(event) => setNewBoardName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    requestCreateBoard()
+                  }
+                }}
+                value={newBoardName}
+              />
+              <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl border border-border-subtle bg-surface-sunken px-3 py-2.5">
+                <input
+                  checked={newBoardIsPrivate}
+                  className="mt-0.5 h-4 w-4 rounded border-border-subtle text-electric-violet focus:ring-electric-violet"
+                  onChange={(event) =>
+                    setNewBoardIsPrivate(event.target.checked)
+                  }
+                  type="checkbox"
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-text-primary">
+                    <Lock className="h-3.5 w-3.5 shrink-0" />
+                    Private board
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-snug text-text-tertiary">
+                    Only you can see this board. Workspace members will not see it
+                    in the sidebar.
+                  </span>
+                </span>
+              </label>
+              <button
+                className="mt-3 flex w-full items-center justify-center rounded-xl bg-electric-violet px-3 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !newBoardName.trim() ||
+                  !selectedNewBoardType ||
+                  createBoard.isPending
+                }
+                onClick={requestCreateBoard}
+                type="button"
+              >
+                {createBoard.isPending ? 'Creating…' : 'Create board'}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
       {isShortcutHelpOpen ? (
         <KeyboardShortcutsDialog
           onClose={() => setIsShortcutHelpOpen(false)}

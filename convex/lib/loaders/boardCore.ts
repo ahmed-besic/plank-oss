@@ -1,3 +1,4 @@
+import { canViewerAccessBoard } from "@plank/domain";
 import { sortByOrderKey } from "../cardRuntime";
 import type { QueryCtx } from "../../_generated/server";
 import type { Doc, Id } from "../../_generated/dataModel";
@@ -6,13 +7,19 @@ export async function loadBoardCore({
 	ctx,
 	workspaceId,
 	boardId,
+	viewerUserId,
 }: {
 	ctx: QueryCtx;
 	workspaceId: Id<"workspaces">;
 	boardId: Id<"boards">;
+	viewerUserId: string;
 }) {
 	const board = await ctx.db.get(boardId);
-	if (!board || board.workspaceId !== workspaceId) {
+	if (
+		!board ||
+		board.workspaceId !== workspaceId ||
+		!canViewerAccessBoard(board, viewerUserId)
+	) {
 		return null;
 	}
 
@@ -35,9 +42,11 @@ export function getDerivedColumns(boardType: Doc<"boardTypes">) {
 export function buildBoardSummary({
 	board,
 	boardType,
+	viewerUserId,
 }: {
 	board: Doc<"boards">;
 	boardType: Doc<"boardTypes">;
+	viewerUserId: string;
 }) {
 	const statusMap = new Map(
 		boardType.lifecycleConfig.statuses.map((status) => [status.key, status]),
@@ -48,6 +57,8 @@ export function buildBoardSummary({
 		name: board.name,
 		workspaceId: board.workspaceId,
 		boardTypeId: board.boardTypeId,
+		visibility: board.visibility ?? "workspace",
+		viewerIsOwner: board.createdBy === viewerUserId,
 		columns: getDerivedColumns(boardType).map((column) => ({
 			id: column.id,
 			statusKey: column.statusKey,

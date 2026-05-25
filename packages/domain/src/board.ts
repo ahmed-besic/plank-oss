@@ -151,3 +151,25 @@ export function createSlug(name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 }
+
+export type BoardVisibility = "workspace" | "private";
+
+export function getBoardVisibility(board: {
+  visibility?: BoardVisibility;
+}): BoardVisibility {
+  return board.visibility ?? "workspace";
+}
+
+export function isPrivateBoard(board: { visibility?: BoardVisibility }): boolean {
+  return getBoardVisibility(board) === "private";
+}
+
+export function canViewerAccessBoard(
+  board: { visibility?: BoardVisibility; createdBy: string },
+  viewerUserId: string,
+): boolean {
+  if (!isPrivateBoard(board)) {
+    return true;
+  }
+  return board.createdBy === viewerUserId;
+}

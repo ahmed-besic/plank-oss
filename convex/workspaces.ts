@@ -630,6 +630,7 @@ export const createBoard = mutation({
     workspaceSlug: v.string(),
     name: v.string(),
     boardTypeId: v.id("boardTypes"),
+    isPrivate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId, workspace } = await requireWorkspaceAccessBySlug(
@@ -652,6 +653,7 @@ export const createBoard = mutation({
       createdAt: now,
       updatedAt: now,
       boardSettings: createBoardSettingsEnvelope(),
+      visibility: args.isPrivate ? "private" : "workspace",
     });
 
     const installed = await getWorkspaceExtensionRecords(ctx, workspace._id);

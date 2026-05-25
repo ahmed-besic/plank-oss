@@ -1,4 +1,5 @@
 import {
+  canViewerAccessBoard,
   compareOrderKeys,
   createDefaultCardBody,
   normalizeCardBody,
@@ -89,13 +90,19 @@ export async function requireBoardWithType({
   ctx,
   workspaceId,
   boardId,
+  viewerUserId,
 }: {
   ctx: DbCtx;
   workspaceId: Id<"workspaces">;
   boardId: Id<"boards">;
+  viewerUserId: string;
 }) {
   const board = await ctx.db.get(boardId);
-  if (!board || board.workspaceId !== workspaceId) {
+  if (
+    !board ||
+    board.workspaceId !== workspaceId ||
+    !canViewerAccessBoard(board, viewerUserId)
+  ) {
     throw new Error("Board not found");
   }
 

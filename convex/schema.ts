@@ -480,6 +480,9 @@ export default defineSchema({
     updatedAt: v.number(),
     primaryViewId: v.optional(v.string()),
     boardSettings: v.optional(persistedBoardSettingsValidator),
+    visibility: v.optional(
+      v.union(v.literal("workspace"), v.literal("private")),
+    ),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_workspace_slug", ["workspaceId", "slug"])

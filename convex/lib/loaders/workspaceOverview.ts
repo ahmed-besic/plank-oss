@@ -1,4 +1,4 @@
-import { canManageWorkspace } from "@plank/domain";
+import { canManageWorkspace, canViewerAccessBoard } from "@plank/domain";
 import type { QueryCtx } from "../../_generated/server";
 import type { Doc, Id } from "../../_generated/dataModel";
 import { getWorkspaceExtensionRecords, mergePluginState } from "../plugins";
@@ -118,6 +118,7 @@ export async function loadWorkspaceOverview({
 
 	return {
 		boards: boards
+			.filter((board) => canViewerAccessBoard(board, userId))
 			.map((board) => {
 				const digest = digestByBoardId.get(String(board._id));
 				return {
@@ -126,6 +127,8 @@ export async function loadWorkspaceOverview({
 					slug: board.slug,
 					workspaceId: board.workspaceId,
 					boardTypeId: board.boardTypeId,
+					visibility: board.visibility ?? "workspace",
+					viewerIsOwner: board.createdBy === userId,
 					viewerSeenAt: seenAtByBoardId.get(String(board._id)),
 					latestExternalChange: digest
 						? {
