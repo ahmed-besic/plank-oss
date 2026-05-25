@@ -1,10 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Authenticated, AuthLoading, Unauthenticated } from 'convex/react'
-import { Layers3, Settings2, Tags, Users } from 'lucide-react'
+import { Keyboard, Layers3, Settings2, Tags, Users } from 'lucide-react'
 import { Button } from '@plank/ui'
 import { useMemo, useState } from 'react'
 import { WorkspaceShell } from '../../components/workspace-shell'
-import type { KeyboardShortcut } from '../../lib/keyboard-shortcuts'
+import { KEYBOARD_SHORTCUT_BINDINGS } from '../../lib/keyboard-shortcut-catalog'
+import {
+  type KeyboardShortcut,
+  formatShortcutKey,
+} from '../../lib/keyboard-shortcuts'
 import { usePlankApp } from '../../lib/providers'
 import { collectEnabledUiExtensions } from '../../lib/plugin-ui-extensions'
 import { AutomationTab } from './_settings/-automation-tab'
@@ -20,7 +24,12 @@ export const Route = createRoute('/w/$workspaceSlug/settings')({
   component: WorkspaceSettingsRoute,
 })
 
-type CoreTabKey = 'extensions' | 'schema' | 'automation' | 'members'
+type CoreTabKey =
+  | 'extensions'
+  | 'schema'
+  | 'automation'
+  | 'members'
+  | 'shortcuts'
 type TabKey = CoreTabKey | string
 
 const TABS: { key: CoreTabKey; label: string; icon: React.ReactNode }[] = [
@@ -28,7 +37,75 @@ const TABS: { key: CoreTabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'schema', label: 'Schema', icon: <Tags /> },
   { key: 'automation', label: 'Automation', icon: <Layers3 /> },
   { key: 'members', label: 'Members', icon: <Users /> },
+  { key: 'shortcuts', label: 'Shortcuts', icon: <Keyboard /> },
 ]
+
+const SHORTCUT_GROUP_LABELS = {
+  global: 'Anywhere',
+  board: 'Board',
+  card: 'Card drawer',
+  comments: 'Comments',
+  settings: 'Settings',
+} as const
+
+function ShortcutsTab() {
+  const groupedBindings = KEYBOARD_SHORTCUT_BINDINGS.reduce(
+    (groups, binding) => {
+      groups[binding.scope] ??= []
+      groups[binding.scope].push(binding)
+      return groups
+    },
+    {} as Record<
+      keyof typeof SHORTCUT_GROUP_LABELS,
+      typeof KEYBOARD_SHORTCUT_BINDINGS
+    >,
+  )
+
+  return (
+    <div className="shortcuts-tab">
+      <div className="shortcuts-header">
+        <h2 className="shortcuts-title">Keyboard shortcuts</h2>
+        <p className="shortcuts-subtitle">
+          These bindings work outside text fields unless noted by the context.
+          Press <kbd>?</kbd> anywhere to open the quick reference.
+        </p>
+      </div>
+
+      <div className="shortcuts-grid">
+        {(
+          Object.keys(SHORTCUT_GROUP_LABELS) as Array<
+            keyof typeof SHORTCUT_GROUP_LABELS
+          >
+        ).map((scope) => {
+          const bindings = groupedBindings[scope] ?? []
+          if (!bindings.length) {
+            return null
+          }
+
+          return (
+            <section className="shortcuts-card" key={scope}>
+              <h3>{SHORTCUT_GROUP_LABELS[scope]}</h3>
+              <div className="shortcuts-list">
+                {bindings.map((binding) => (
+                  <div className="shortcuts-row" key={binding.id}>
+                    <span className="shortcuts-description">
+                      {binding.description}
+                    </span>
+                    <span className="shortcuts-keys">
+                      {binding.keys.map((key) => (
+                        <kbd key={key}>{formatShortcutKey(key)}</kbd>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function WorkspaceSettingsRoute() {
   const { workspaceSlug } = Route.useParams()
@@ -141,6 +218,11 @@ function WorkspaceSettingsRoute() {
                       className={`settings-panel${activeTab === 'members' ? ' active' : ''}`}
                     >
                       <MembersTab data={data} />
+                    </div>
+                    <div
+                      className={`settings-panel${activeTab === 'shortcuts' ? ' active' : ''}`}
+                    >
+                      <ShortcutsTab />
                     </div>
                     {activePluginPanel ? (
                       <div className="settings-panel active">

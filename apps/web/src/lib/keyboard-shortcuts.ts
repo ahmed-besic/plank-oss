@@ -14,6 +14,29 @@ export interface KeyboardShortcut {
 
 const SEQUENCE_TIMEOUT_MS = 900
 
+export const SHORTCUT_SCOPE_LABELS: Record<ShortcutScope, string> = {
+  global: 'Anywhere',
+  board: 'Board',
+  card: 'Card drawer',
+  settings: 'Settings',
+}
+
+export function formatShortcutKey(key: string) {
+  const isMac =
+    typeof navigator !== 'undefined' &&
+    navigator.platform.toLowerCase().includes('mac')
+  return key
+    .replace('mod', isMac ? '⌘' : 'Ctrl')
+    .replace('shift', 'Shift')
+    .replace('alt', 'Alt')
+    .replace('enter', 'Enter')
+    .replace('escape', 'Esc')
+    .replace('arrowleft', '←')
+    .replace('arrowright', '→')
+    .replace(/\+/g, ' + ')
+    .toUpperCase()
+}
+
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) {
     return false

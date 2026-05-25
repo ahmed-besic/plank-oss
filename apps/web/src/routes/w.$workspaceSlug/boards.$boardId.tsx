@@ -1,5 +1,5 @@
 import { convexQuery } from '@convex-dev/react-query'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import {
   Authenticated,
@@ -17,7 +17,6 @@ import {
   Lock,
   ListTodo,
   Plus,
-  Plug,
   Search,
   Settings2,
   SquareKanban,
@@ -43,8 +42,6 @@ import { buildBoardCommandItems } from '../../features/board/command-items'
 import { BoardSearchDialog } from '../../features/board/BoardSearchDialog'
 import { BoardActivityPage } from '../../features/collaboration/BoardActivityPage'
 import { CardCommentsPanel } from '../../features/collaboration/CardCommentsPanel'
-import { BoardExtensionsPage } from '../../features/extensions/BoardExtensionsPage'
-import type { ExtensionCategory } from '../../features/extensions/BoardExtensionsPage'
 import { useBoardActions } from '../../lib/use-board-actions'
 import { createBoardPlatformServices } from '../../lib/plugin-platform-services'
 import {
@@ -77,7 +74,7 @@ export const Route = createRoute('/w/$workspaceSlug/boards/$boardId')({
   component: BoardRoute,
 })
 
-type BoardUtilityPage = 'none' | 'extensions' | 'activity'
+type BoardUtilityPage = 'none' | 'activity'
 const BOARD_PRESENCE_ACTIVE_MS = 90_000
 const BOARD_PRESENCE_HEARTBEAT_MS = 45_000
 const DRAWER_EXIT_MS = 180
@@ -150,8 +147,6 @@ function BoardRoute() {
   const [isDrawerClosing, setIsDrawerClosing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [utilityPage, setUtilityPage] = useState<BoardUtilityPage>('none')
-  const [extensionCategory, setExtensionCategory] =
-    useState<ExtensionCategory>('all')
   const drawerCloseTimeoutRef = useRef<number | null>(null)
   const closingCardIdRef = useRef<string | null>(null)
   const activityVisible = utilityPage === 'activity'
@@ -207,26 +202,6 @@ function BoardRoute() {
     ...activityOptions,
     enabled:
       hydrated && auth.isAuthenticated && hasLoadedBoard && activityVisible,
-  })
-  const toggleExtension = useMutation({
-    mutationFn: async ({
-      pluginId,
-      status,
-    }: {
-      pluginId: string
-      status: 'enabled' | 'disabled'
-    }) =>
-      convexClient.mutation(api.workspaces.setExtensionStatus, {
-        workspaceSlug,
-        pluginId,
-        status,
-      }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: overviewOptions.queryKey }),
-        queryClient.invalidateQueries({ queryKey: boardOptions.queryKey }),
-      ])
-    },
   })
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -1068,17 +1043,6 @@ function BoardRoute() {
           ),
       },
       {
-        id: 'board.extensions',
-        keys: ['e'],
-        description: 'Toggle extensions',
-        scope: 'board',
-        disabled: isBoardInputBlocked,
-        run: () =>
-          setUtilityPage((current) =>
-            current === 'extensions' ? 'none' : 'extensions',
-          ),
-      },
-      {
         id: 'board.inbox',
         keys: ['i'],
         description: 'Toggle inbox',
@@ -1424,31 +1388,6 @@ function BoardRoute() {
                     >
                       <Activity className="h-4 w-4" />
                     </button>
-                    <button
-                      className={cn(
-                        'rounded-lg p-2 transition-all duration-200',
-                        utilityPage === 'extensions'
-                          ? 'bg-electric-violet/10 text-electric-violet'
-                          : 'text-text-tertiary hover:bg-surface-sunken hover:text-text-primary',
-                      )}
-                      onClick={() =>
-                        setUtilityPage((current) =>
-                          current === 'extensions' ? 'none' : 'extensions',
-                        )
-                      }
-                      title="Plugins"
-                      type="button"
-                    >
-                      <Plug className="h-4 w-4" />
-                    </button>
-                    <button
-                      className="rounded-lg p-2 text-text-tertiary transition-all duration-200 hover:bg-surface-sunken hover:text-text-primary"
-                      onClick={openSettings}
-                      title="Settings"
-                      type="button"
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </button>
                     <div
                       className="hidden items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-secondary sm:flex"
                       title={
@@ -1483,17 +1422,6 @@ function BoardRoute() {
                         card: cardId,
                       }))
                     }
-                  />
-                ) : utilityPage === 'extensions' ? (
-                  <BoardExtensionsPage
-                    extensionCategory={extensionCategory}
-                    isToggling={toggleExtension.isPending}
-                    onOpenSettings={openSettings}
-                    onSetExtensionCategory={setExtensionCategory}
-                    onToggleExtension={(pluginId, status) =>
-                      toggleExtension.mutate({ pluginId, status })
-                    }
-                    overview={overviewData}
                   />
                 ) : pluginView ? (
                   <div className="h-full overflow-auto px-3 pb-4 pt-3 md:px-4">
