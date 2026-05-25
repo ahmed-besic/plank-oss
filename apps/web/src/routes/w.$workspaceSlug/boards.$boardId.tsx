@@ -1200,7 +1200,7 @@ function BoardRoute() {
             section="board"
             shortcuts={boardShortcuts}
           >
-            <div className="flex min-h-[calc(100vh-64px)] flex-col">
+            <div className="flex h-full min-h-0 flex-col">
               <header className="sticky top-0 z-20 border-b border-border-subtle bg-cloud-white/80 backdrop-blur-xl">
                 <div className="flex min-h-14 items-center justify-between gap-4 px-4">
                   <div className="flex min-w-0 items-center gap-3">

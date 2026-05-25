@@ -533,10 +533,10 @@ export function WorkspaceShell({
   useKeyboardShortcuts(activeShortcuts)
 
   return (
-    <div className="flex min-h-screen bg-lavender-mist">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-lavender-mist">
       {/* ─── Left sidebar ─── */}
       <div
-        className="relative hidden shrink-0 overflow-hidden border-r border-border-subtle bg-cloud-white transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] lg:block"
+        className="relative hidden h-full shrink-0 overflow-hidden border-r border-border-subtle bg-cloud-white transition-[width] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] lg:block"
         style={{
           width: isSidebarHidden ? COLLAPSED_SIDEBAR_WIDTH : sidebarWidth,
         }}
@@ -671,7 +671,7 @@ export function WorkspaceShell({
           <NotificationCenter overview={overview} />
 
           {/* Section navigation */}
-          <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
+          <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
             {/* Boards list */}
             <div className="mb-1 flex items-center justify-between px-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
@@ -826,7 +826,7 @@ export function WorkspaceShell({
           </nav>
 
           {/* Bottom actions */}
-          <div className="border-t border-border-subtle px-3 py-3">
+          <div className="shrink-0 border-t border-border-subtle px-3 py-3">
             <Link
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
@@ -857,7 +857,7 @@ export function WorkspaceShell({
       </div>
 
       {/* ─── Main content ─── */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile topbar (visible on small screens only) */}
         <div className="border-b border-border-subtle bg-cloud-white/90 backdrop-blur-xl lg:hidden">
           <div className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
@@ -898,14 +898,16 @@ export function WorkspaceShell({
           </div>
         </div>
 
-        <main className="flex min-h-0 flex-1 flex-col">
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {header ? (
-            <div className="px-6 pt-6 animate-fade-in">{header}</div>
+            <div className="shrink-0 px-6 pt-6 animate-fade-in">{header}</div>
           ) : null}
           <div
             className={cn(
               'min-h-0 flex-1 animate-fade-in',
-              section === 'board' ? '' : 'px-6 py-5',
+              section === 'board'
+                ? 'overflow-hidden'
+                : 'overflow-y-auto px-6 py-5',
             )}
           >
             {children}
