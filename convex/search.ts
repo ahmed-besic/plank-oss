@@ -63,7 +63,9 @@ export const searchBoardTitles = query({
       .take(32);
 
     return results
-      .filter((card) => getCardScopeId(card) === activeScopeId)
+      .filter(
+        (card) => !card.deletedAt && getCardScopeId(card) === activeScopeId,
+      )
       .slice(0, 8)
       .map((card) => ({
         id: card._id,
@@ -105,7 +107,9 @@ export const searchWorkspaceCardTitles = query({
       )
       .take(args.limit ?? 8);
 
-    const filtered = results.filter((card) => card._id !== args.excludeCardId);
+    const filtered = results.filter(
+      (card) => !card.deletedAt && card._id !== args.excludeCardId,
+    );
     const boardsById = new Map<string, { name: string }>();
     const accessibleCards: Doc<"cards">[] = [];
     for (const card of filtered) {

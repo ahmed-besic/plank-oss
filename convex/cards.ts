@@ -5,7 +5,7 @@ import {
   extractBodyMentions,
 } from "@plank/domain";
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { getCurrentUserId, requireWorkspaceAccessBySlug } from "./lib/auth";
 import {
@@ -397,6 +397,9 @@ export const getCardRelations = query({
     ) {
       return { outgoing: [], incoming: [] };
     }
+    if (card.deletedAt) {
+      return { outgoing: [], incoming: [] };
+    }
 
     const [outgoingEdges, incomingEdges] = await Promise.all([
       ctx.db
@@ -415,7 +418,11 @@ export const getCardRelations = query({
     const outgoing = await Promise.all(
       outgoingEdges.map(async (relation) => {
         const targetCard = await ctx.db.get(relation.targetCardId);
-        if (!targetCard || targetCard.workspaceId !== workspace._id) {
+        if (
+          !targetCard ||
+          targetCard.workspaceId !== workspace._id ||
+          targetCard.deletedAt
+        ) {
           return null;
         }
         const targetBoard = await ctx.db.get(targetCard.boardId);
@@ -436,7 +443,9 @@ export const getCardRelations = query({
       await Promise.all(
         incomingEdges.map(async (relation) => {
           const source = await ctx.db.get(relation.sourceCardId);
-          return source && source.workspaceId === workspace._id
+          return source &&
+            source.workspaceId === workspace._id &&
+            !source.deletedAt
             ? { source, type: relation.type }
             : null;
         }),
@@ -869,6 +878,14 @@ export const deleteCard = mutation({
       throw new Error("Card not found");
     }
 
+    if (card.deletedAt) {
+      return { cardId: card._id };
+    }
+
+    const deletedAt = Date.now();
+    const deleteExpiresAt = deletedAt + 10 * 24 * 60 * 60 * 1000;
+    const rootId = card.parentId ?? card._id;
+
     const subtasks = await ctx.db
       .query("cards")
       .withIndex("by_board_parent", (q) =>
@@ -881,7 +898,23 @@ export const deleteCard = mutation({
         workspaceId: workspace._id,
         cardId: subtask._id,
       });
-      await ctx.db.delete(subtask._id);
+      await removeIncomingRelationsToCard({
+        ctx,
+        workspaceId: workspace._id,
+        cardId: subtask._id,
+      });
+      await removeCardRelationProjectionRowsForCard({
+        ctx,
+        workspaceId: workspace._id,
+        cardId: subtask._id,
+      });
+      await ctx.db.patch(subtask._id, {
+        deletedAt,
+        deleteExpiresAt,
+        deletedBy: userId,
+        deletionRootCardId: rootId,
+        updatedAt: deletedAt,
+      });
     }
     await cleanupDeletedCardCollaboration({
       ctx,
@@ -912,8 +945,189 @@ export const deleteCard = mutation({
       workspaceId: workspace._id,
       cardId: card._id,
     });
-    await ctx.db.delete(card._id);
+    await ctx.db.patch(card._id, {
+      deletedAt,
+      deleteExpiresAt,
+      deletedBy: userId,
+      deletionRootCardId: rootId,
+      updatedAt: deletedAt,
+    });
 
     return { cardId: card._id };
+  },
+});
+
+export const restoreCard = mutation({
+  args: {
+    workspaceSlug: v.string(),
+    boardId: v.id("boards"),
+    cardId: v.id("cards"),
+  },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireWorkspaceAccessBySlug(
+      ctx,
+      args.workspaceSlug,
+    );
+    const userId = await getCurrentUserId(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (
+      !card ||
+      card.workspaceId !== workspace._id ||
+      card.boardId !== args.boardId
+    ) {
+      throw new Error("Card not found");
+    }
+    if (!card.deletedAt) {
+      return { cardId: card._id, restoredCount: 0 };
+    }
+
+    const restoredAt = Date.now();
+    const rootId = card.deletionRootCardId ?? card._id;
+    const group = await ctx.db
+      .query("cards")
+      .withIndex("by_workspace_deletion_root", (q) =>
+        q.eq("workspaceId", workspace._id).eq("deletionRootCardId", rootId),
+      )
+      .collect();
+    const toRestore = group.filter(
+      (row) => row.boardId === args.boardId && Boolean(row.deletedAt),
+    );
+
+    for (const row of toRestore) {
+      const next: any = { ...row };
+      delete next._id;
+      delete next._creationTime;
+      delete next.deletedAt;
+      delete next.deleteExpiresAt;
+      delete next.deletedBy;
+      delete next.deletionRootCardId;
+      next.updatedAt = restoredAt;
+      await ctx.db.replace(row._id, next);
+    }
+
+    for (const row of toRestore) {
+      for (const relation of row.relations) {
+        const targetCard = await ctx.db.get(relation.targetCardId);
+        if (
+          !targetCard ||
+          targetCard.workspaceId !== workspace._id ||
+          targetCard.deletedAt
+        ) {
+          continue;
+        }
+        await upsertCardRelationProjection({
+          ctx,
+          workspaceId: workspace._id,
+          sourceBoardId: row.boardId,
+          sourceCardId: row._id,
+          targetBoardId: targetCard.boardId,
+          targetCardId: targetCard._id,
+          type: relation.type,
+        });
+      }
+    }
+
+    await emitCardEvent(ctx, workspace._id, {
+      name: "card.updated",
+      actorId: userId,
+      boardId: card.boardId,
+      cardId: card._id,
+      statusKey: card.statusKey,
+      previousStatusKey: card.statusKey,
+      cardTypeId: card.typeKey,
+      tagIds: card.tagIds,
+      previousColumnId: card.statusKey,
+      workspaceId: workspace._id,
+    });
+
+    return { cardId: card._id, restoredCount: toRestore.length };
+  },
+});
+
+export const listDeletedCards = query({
+  args: {
+    workspaceSlug: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { workspace } = await requireWorkspaceAccessBySlug(
+      ctx,
+      args.workspaceSlug,
+    );
+    const rows = await ctx.db
+      .query("cards")
+      .withIndex("by_workspace_deleted_at", (q) =>
+        q.eq("workspaceId", workspace._id),
+      )
+      .collect();
+
+    const deleted = rows
+      .filter((card) => Boolean(card.deletedAt))
+      .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
+
+    const limit = Math.max(1, Math.min(args.limit ?? 100, 500));
+    const page = deleted.slice(0, limit);
+
+    const boardsById = new Map<string, { name: string }>();
+    for (const card of page) {
+      if (boardsById.has(card.boardId)) {
+        continue;
+      }
+      const board = await ctx.db.get(card.boardId);
+      if (board && board.workspaceId === workspace._id) {
+        boardsById.set(card.boardId, { name: board.name });
+      }
+    }
+
+    return page.map((card) => ({
+      id: card._id,
+      title: card.meta.title,
+      boardId: card.boardId,
+      boardName: boardsById.get(card.boardId)?.name ?? "Board",
+      parentId: card.parentId ?? null,
+      deletedAt: card.deletedAt!,
+      deleteExpiresAt: card.deleteExpiresAt ?? null,
+      deletedBy: card.deletedBy ?? null,
+      deletionRootCardId: card.deletionRootCardId ?? card._id,
+    }));
+  },
+});
+
+export const purgeExpiredDeletedCards = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const workspaces = await ctx.db.query("workspaces").collect();
+
+    for (const workspace of workspaces) {
+      const expired = await ctx.db
+        .query("cards")
+        .withIndex("by_workspace_delete_expires_at", (q) =>
+          q.eq("workspaceId", workspace._id).lt("deleteExpiresAt", now),
+        )
+        .take(200);
+
+      for (const card of expired) {
+        if (!card.deletedAt) {
+          continue;
+        }
+        await cleanupDeletedCardCollaboration({
+          ctx,
+          workspaceId: workspace._id,
+          cardId: card._id,
+        });
+        await removeIncomingRelationsToCard({
+          ctx,
+          workspaceId: workspace._id,
+          cardId: card._id,
+        });
+        await removeCardRelationProjectionRowsForCard({
+          ctx,
+          workspaceId: workspace._id,
+          cardId: card._id,
+        });
+        await ctx.db.delete(card._id);
+      }
+    }
   },
 });

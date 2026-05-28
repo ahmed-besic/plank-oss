@@ -271,13 +271,16 @@ async function getBoardCardsForViewer(
             .query("cards")
             .withIndex("by_board", (query) => query.eq("boardId", board._id))
             .collect()
-        ).filter((card) => getCardScopeId(card) === activeScopeId)
+        ).filter(
+          (card) => !card.deletedAt && getCardScopeId(card) === activeScopeId,
+        )
       : await ctx.db
           .query("cards")
           .withIndex("by_board_scope", (query) =>
             query.eq("boardId", board._id).eq("scopeId", activeScopeId),
           )
-          .collect();
+          .collect()
+          .then((cards) => cards.filter((card) => !card.deletedAt));
   const cardDigestByCardId = buildCardDigestByCardId(
     collaborationRows.cardDigests,
   );

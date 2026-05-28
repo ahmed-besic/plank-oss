@@ -322,6 +322,35 @@
   line-height: 1.5;
 }
 
+/* ─── Trash tab ─── */
+.trash-tab-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trash-tab-header .extensions-subtitle {
+  margin-bottom: 20px;
+}
+
+.trash-row {
+  justify-content: space-between;
+}
+
+.trash-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.trash-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+}
+
 /* ─── Grid layouts ─── */
 .settings-grid-2 {
   display: grid;

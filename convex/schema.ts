@@ -594,6 +594,10 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     createdBy: v.string(),
+    deletedAt: v.optional(v.number()),
+    deleteExpiresAt: v.optional(v.number()),
+    deletedBy: v.optional(v.string()),
+    deletionRootCardId: v.optional(v.id("cards")),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_board", ["boardId"])
@@ -605,6 +609,9 @@ export default defineSchema({
     .index("by_board_scope_status", ["boardId", "scopeId", "statusKey"])
     .index("by_board_type_key", ["boardId", "typeKey"])
     .index("by_type_key", ["workspaceId", "typeKey"])
+    .index("by_workspace_deleted_at", ["workspaceId", "deletedAt"])
+    .index("by_workspace_delete_expires_at", ["workspaceId", "deleteExpiresAt"])
+    .index("by_workspace_deletion_root", ["workspaceId", "deletionRootCardId"])
     .searchIndex("search_title", {
       searchField: "meta.title",
       filterFields: ["workspaceId", "boardId", "scopeId"],

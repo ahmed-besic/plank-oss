@@ -38,7 +38,12 @@ export async function loadBoardCardRows({
       .collect(),
   ]);
 
-  return { allCustomFields, cards, registryTypes, tags };
+  return {
+    allCustomFields,
+    cards: cards.filter((card) => !card.deletedAt),
+    registryTypes,
+    tags,
+  };
 }
 
 export async function loadBoardCardDefinitionRows({

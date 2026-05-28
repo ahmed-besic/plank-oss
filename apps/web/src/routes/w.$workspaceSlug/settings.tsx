@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Authenticated, AuthLoading, Unauthenticated } from 'convex/react'
-import { Keyboard, Layers3, Settings2, Tags, Users } from 'lucide-react'
+import { Keyboard, Layers3, Settings2, Tags, Trash2, Users } from 'lucide-react'
 import { Button } from '@plank/ui'
 import { useMemo, useState } from 'react'
 import { WorkspaceShell } from '../../components/workspace-shell'
@@ -15,6 +15,7 @@ import { AutomationTab } from './_settings/-automation-tab'
 import { ExtensionsTab } from './_settings/-extensions-tab'
 import { MembersTab } from './_settings/-members-tab'
 import { SchemaTab } from './_settings/-schema-tab'
+import { TrashTab } from './_settings/-trash-tab'
 import { useSettingsData } from './_settings/-use-settings-data'
 import './settings.css'
 
@@ -29,6 +30,7 @@ type CoreTabKey =
   | 'schema'
   | 'automation'
   | 'members'
+  | 'trash'
   | 'shortcuts'
 type TabKey = CoreTabKey | string
 
@@ -37,6 +39,7 @@ const TABS: { key: CoreTabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'schema', label: 'Schema', icon: <Tags /> },
   { key: 'automation', label: 'Automation', icon: <Layers3 /> },
   { key: 'members', label: 'Members', icon: <Users /> },
+  { key: 'trash', label: 'Trash', icon: <Trash2 /> },
   { key: 'shortcuts', label: 'Shortcuts', icon: <Keyboard /> },
 ]
 
@@ -223,6 +226,11 @@ function WorkspaceSettingsRoute() {
                       className={`settings-panel${activeTab === 'shortcuts' ? ' active' : ''}`}
                     >
                       <ShortcutsTab />
+                    </div>
+                    <div
+                      className={`settings-panel${activeTab === 'trash' ? ' active' : ''}`}
+                    >
+                      <TrashTab data={data} />
                     </div>
                     {activePluginPanel ? (
                       <div className="settings-panel active">

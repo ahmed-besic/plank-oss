@@ -16,6 +16,7 @@ import type * as cardTypeRegistry from "../cardTypeRegistry.js";
 import type * as cardTypes from "../cardTypes.js";
 import type * as cards from "../cards.js";
 import type * as comments from "../comments.js";
+import type * as crons from "../crons.js";
 import type * as features_collaboration_activity from "../features/collaboration/activity.js";
 import type * as features_collaboration_cleanup from "../features/collaboration/cleanup.js";
 import type * as features_collaboration_comments from "../features/collaboration/comments.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   cardTypes: typeof cardTypes;
   cards: typeof cards;
   comments: typeof comments;
+  crons: typeof crons;
   "features/collaboration/activity": typeof features_collaboration_activity;
   "features/collaboration/cleanup": typeof features_collaboration_cleanup;
   "features/collaboration/comments": typeof features_collaboration_comments;

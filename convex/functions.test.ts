@@ -25,6 +25,7 @@ import {
   createSubTask,
   deleteCard,
   getCardRelations,
+  restoreCard,
   listSubTasks,
   markCardSeen,
   removeCardRelation,
@@ -278,6 +279,29 @@ describe("board functions", () => {
       ),
     ).rejects.toThrow(/invalid field value: dueDate/i);
 
+    db.rows("cards").push({
+      _id: "card_subtask_1",
+      workspaceId: "workspace_1",
+      boardId: "board_1",
+      parentId: created.cardId,
+      typeKey: "core.todo",
+      typeSchemaVersion: 1,
+      meta: { title: "Write tests" },
+      statusKey: "backlog",
+      orderKey: createKeyAfter(createKeyAfter()),
+      fields: { core: {}, custom: {} },
+      relations: [],
+      tagIds: [],
+      body: {
+        type: "blocknote",
+        content: [{ id: "paragraph-subtask-1", type: "paragraph" }],
+      },
+      createdAt: 1,
+      updatedAt: 1,
+      createdBy: "user_1",
+    });
+    expect(db.rows("cards")).toHaveLength(2);
+
     await (
       deleteCard as unknown as (ctx: unknown, args: unknown) => Promise<any>
     )(ctx, {
@@ -286,7 +310,13 @@ describe("board functions", () => {
       cardId: created.cardId,
     });
 
-    expect(db.rows("cards")).toHaveLength(0);
+    expect(db.rows("cards")).toHaveLength(2);
+    for (const card of db.rows("cards") as any[]) {
+      expect(card.deletedAt).toEqual(expect.any(Number));
+      expect(card.deleteExpiresAt).toEqual(expect.any(Number));
+      expect(card.deletedBy).toEqual("user_1");
+      expect(card.deletionRootCardId).toEqual(created.cardId);
+    }
     expect(db.rows("workflowEvents").at(-1)).toMatchObject({
       eventName: "card.deleted",
       cardId: created.cardId,
@@ -295,6 +325,22 @@ describe("board functions", () => {
       cardId: created.cardId,
       kind: "delete",
     });
+
+    await (
+      restoreCard as unknown as (ctx: unknown, args: unknown) => Promise<any>
+    )(ctx, {
+      workspaceSlug: "acme",
+      boardId: "board_1",
+      cardId: created.cardId,
+    });
+
+    expect(db.rows("cards")).toHaveLength(2);
+    for (const card of db.rows("cards") as any[]) {
+      expect(card.deletedAt).toBeUndefined();
+      expect(card.deleteExpiresAt).toBeUndefined();
+      expect(card.deletedBy).toBeUndefined();
+      expect(card.deletionRootCardId).toBeUndefined();
+    }
   });
 
   it("allows custom user properties to store multiple assignees", async () => {
@@ -2389,7 +2435,10 @@ describe("workspace and search functions", () => {
       cardId: "card_2",
     });
 
-    expect(db.rows("cards")).toHaveLength(1);
-    expect(db.rows("cards")[0]?.relations).toEqual([]);
+    expect(db.rows("cards")).toHaveLength(2);
+    const source = (db.rows("cards") as any[]).find((row) => row._id === "card_1");
+    const target = (db.rows("cards") as any[]).find((row) => row._id === "card_2");
+    expect(source?.relations).toEqual([]);
+    expect(target?.deletedAt).toEqual(expect.any(Number));
   });
 });
