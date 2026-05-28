@@ -1,6 +1,12 @@
 /* @vitest-environment jsdom */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NotificationCenter } from './NotificationCenter'
 import type { WorkspaceOverviewData } from '../../lib/types'
@@ -33,7 +39,10 @@ vi.mock('@convex-dev/react-query', () => ({
 }))
 
 vi.mock('@tanstack/react-query', () => ({
-  useMutation: (options: { mutationFn: (value?: unknown) => Promise<unknown>; onSuccess?: () => Promise<void> }) => ({
+  useMutation: (options: {
+    mutationFn: (value?: unknown) => Promise<unknown>
+    onSuccess?: () => Promise<void>
+  }) => ({
     isPending: false,
     mutateAsync: vi.fn(async (value?: unknown) => {
       const result = await options.mutationFn(value)
@@ -78,6 +87,7 @@ vi.mock('../../lib/use-hydrated', () => ({
 }))
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })
 
@@ -134,5 +144,19 @@ describe('NotificationCenter', () => {
         }),
       )
     })
+  })
+
+  it('opens the same notifications panel from the icon-only variant', () => {
+    render(<NotificationCenter overview={createOverview()} variant="icon" />)
+
+    const trigger = screen.getByRole('button', {
+      name: 'Notifications, 1 unread',
+    })
+    expect(trigger.textContent).toContain('1')
+
+    fireEvent.click(trigger)
+
+    expect(screen.getByText('mentioned you in a comment')).toBeTruthy()
+    expect(screen.getByText('Mark all read')).toBeTruthy()
   })
 })

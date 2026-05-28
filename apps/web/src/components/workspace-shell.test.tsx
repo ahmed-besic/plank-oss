@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineClientPlugin } from '@plank/plugin-sdk'
 import { createClientPluginRegistry } from '@plank/plugin-runtime'
@@ -98,7 +98,11 @@ vi.mock('../lib/use-hydrated', () => ({
 }))
 
 vi.mock('../features/collaboration/NotificationCenter', () => ({
-  NotificationCenter: () => null,
+  NotificationCenter: ({ variant }: { variant?: 'expanded' | 'icon' }) => (
+    <button aria-label={variant === 'icon' ? 'Notifications' : undefined}>
+      Notifications {variant}
+    </button>
+  ),
 }))
 
 vi.mock('./use-workspace-shell-layout', () => ({
@@ -172,7 +176,28 @@ describe('WorkspaceShell', () => {
         slug: 'acme',
         role: 'owner',
       },
-      boards: [],
+      boards: [
+        {
+          id: 'board_1',
+          name: 'Roadmap',
+          slug: 'roadmap',
+          workspaceId: 'workspace_1',
+          boardTypeId: 'board_type_1',
+          viewerSeenAt: 1,
+          latestExternalChange: {
+            actorId: 'user_2',
+            createdAt: 2,
+          },
+        },
+        {
+          id: 'board_2',
+          name: 'Private Tasks',
+          slug: 'private-tasks',
+          workspaceId: 'workspace_1',
+          boardTypeId: 'board_type_1',
+          visibility: 'private',
+        },
+      ],
       boardTypes: [],
       members: [],
       pendingInvites: [],
@@ -181,12 +206,27 @@ describe('WorkspaceShell', () => {
     }
 
     const { container } = render(
-      <WorkspaceShell overview={overview} section="overview">
+      <WorkspaceShell
+        activeBoardId="board_1"
+        overview={overview}
+        section="overview"
+      >
         <main>Workspace content</main>
       </WorkspaceShell>,
     )
 
     expect(screen.getByLabelText('Show sidebar')).toBeTruthy()
+    expect(screen.getByLabelText('Notifications')).toBeTruthy()
+    expect(screen.getByLabelText('Open board Roadmap')).toBeTruthy()
+    expect(screen.getByLabelText('Open board Private Tasks')).toBeTruthy()
+    expect(screen.getByText('RO')).toBeTruthy()
+    expect(screen.getByText('PT')).toBeTruthy()
+    const collapsedNav = screen.getByLabelText('Collapsed board navigation')
+    expect(
+      within(collapsedNav).getByLabelText('Unread external changes'),
+    ).toBeTruthy()
+    expect(within(collapsedNav).getByLabelText('Private board')).toBeTruthy()
+    expect(screen.getByLabelText('Open workspace settings')).toBeTruthy()
     expect(
       container
         .querySelector('[aria-label="Resize sidebar"]')

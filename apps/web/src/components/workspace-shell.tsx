@@ -36,6 +36,24 @@ const COLLAPSED_SIDEBAR_WIDTH = 56
 const CREATE_BOARD_MENU_WIDTH = 352
 const WORKSPACE_MENU_WIDTH = 352
 
+function getBoardInitials(name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) {
+    return 'B'
+  }
+
+  const words = trimmed.split(/\s+/).filter(Boolean)
+  if (words.length > 1) {
+    return words
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase()
+  }
+
+  return (Array.from(trimmed).slice(0, 2).join('') || 'B').toUpperCase()
+}
+
 export function WorkspaceShell({
   activeBoardId,
   children,
@@ -590,13 +608,13 @@ export function WorkspaceShell({
         <div
           aria-hidden={!isSidebarHidden}
           className={cn(
-            'absolute inset-0',
+            'absolute inset-0 flex flex-col overflow-hidden',
             isSidebarHidden
               ? 'panel-fade-in pointer-events-auto'
               : 'panel-fade-out pointer-events-none',
           )}
         >
-          <div className="flex h-14 items-center justify-center border-b border-border-subtle">
+          <div className="flex h-14 shrink-0 items-center justify-center border-b border-border-subtle">
             <button
               aria-label="Show sidebar"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-tertiary transition hover:bg-surface-sunken hover:text-text-primary"
@@ -605,6 +623,78 @@ export function WorkspaceShell({
             >
               <PanelLeftOpen className="h-4 w-4" />
             </button>
+          </div>
+          <NotificationCenter overview={overview} variant="icon" />
+          <nav
+            aria-label="Collapsed board navigation"
+            className="flex min-h-0 flex-1 justify-center overflow-hidden py-3"
+          >
+            <div className="flex max-h-full min-h-0 flex-col items-center gap-2 overflow-x-hidden overflow-y-auto overscroll-contain px-2">
+              {overview.boards.map((board) => {
+                const boardSeenAt = board.viewerSeenAt ?? 0
+                const latestExternalAt =
+                  board.latestExternalChange?.createdAt ?? 0
+                const hasUnreadExternal =
+                  latestExternalAt > boardSeenAt &&
+                  board.latestExternalChange?.actorId !== overview.viewerUserId
+                const isPrivate = board.visibility === 'private'
+
+                return (
+                  <Link
+                    key={board.id}
+                    aria-current={
+                      activeBoardId === board.id ? 'page' : undefined
+                    }
+                    aria-label={`Open board ${board.name}`}
+                    className={cn(
+                      'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold tracking-wide transition-all duration-200',
+                      activeBoardId === board.id
+                        ? 'bg-electric-violet/10 text-electric-violet shadow-sm'
+                        : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+                    )}
+                    onFocus={() => prefetchBoard(board.id)}
+                    onMouseEnter={() => prefetchBoard(board.id)}
+                    params={{
+                      boardId: board.id,
+                      workspaceSlug: overview.workspace.slug,
+                    }}
+                    title={board.name}
+                    to="/w/$workspaceSlug/boards/$boardId"
+                  >
+                    <span>{getBoardInitials(board.name)}</span>
+                    {isPrivate ? (
+                      <Lock
+                        aria-label="Private board"
+                        className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-cloud-white p-0.5 text-text-tertiary"
+                      />
+                    ) : null}
+                    {hasUnreadExternal ? (
+                      <span
+                        aria-label="Unread external changes"
+                        className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-cloud-white bg-sky-500"
+                        title="Unread external changes"
+                      />
+                    ) : null}
+                  </Link>
+                )
+              })}
+            </div>
+          </nav>
+          <div className="flex h-14 shrink-0 items-center justify-center border-t border-border-subtle">
+            <Link
+              aria-label="Open workspace settings"
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200',
+                section === 'settings'
+                  ? 'bg-electric-violet/10 text-electric-violet'
+                  : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+              )}
+              params={{ workspaceSlug: overview.workspace.slug }}
+              title="Settings"
+              to="/w/$workspaceSlug/settings"
+            >
+              <Settings2 className="h-[18px] w-[18px]" />
+            </Link>
           </div>
         </div>
 

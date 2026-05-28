@@ -13,8 +13,10 @@ import type { NotificationData, WorkspaceOverviewData } from '../../lib/types'
 import { useHydrated } from '../../lib/use-hydrated'
 
 export function NotificationCenter({
+  variant = 'expanded',
   overview,
 }: {
+  variant?: 'expanded' | 'icon'
   overview: WorkspaceOverviewData
 }) {
   const auth = useConvexAuth()
@@ -89,10 +91,20 @@ export function NotificationCenter({
 
       const rect = trigger.getBoundingClientRect()
       const maxWidth = 448
-      const width = Math.min(maxWidth, window.innerWidth - rect.left - 16)
+      const availableRight = window.innerWidth - rect.left - 16
+      const viewportWidth = Math.max(0, window.innerWidth - 16)
+      const width = Math.min(
+        maxWidth,
+        viewportWidth,
+        Math.max(320, availableRight),
+      )
+      const left = Math.min(
+        rect.left,
+        Math.max(8, window.innerWidth - width - 16),
+      )
 
       setPanelPosition({
-        left: rect.left,
+        left,
         top: rect.bottom + 4,
         width: Math.max(width, rect.width),
       })
@@ -172,16 +184,36 @@ export function NotificationCenter({
 
   return (
     <div
-      className="relative flex h-14 items-center border-b border-border-subtle px-3"
+      className={cn(
+        'relative flex items-center border-b border-border-subtle',
+        variant === 'icon' ? 'h-12 shrink-0 justify-center px-2' : 'h-14 px-3',
+      )}
       ref={notificationMenuRef}
     >
       <button
+        aria-label={
+          unreadNotifications > 0
+            ? `Notifications, ${unreadNotifications} unread`
+            : 'Notifications'
+        }
         ref={notificationTriggerRef}
-        className="group flex w-full items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
+        className={cn(
+          'group flex items-center rounded-xl text-left transition-all duration-200 hover:bg-surface-sunken',
+          variant === 'icon'
+            ? 'h-9 w-9 justify-center'
+            : 'w-full gap-3 px-3 py-1.5',
+        )}
         onClick={() => setIsNotificationsOpen((open) => !open)}
         type="button"
       >
-        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary">
+        <div
+          className={cn(
+            'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-secondary',
+            variant === 'icon' && isNotificationsOpen
+              ? 'text-electric-violet'
+              : '',
+          )}
+        >
           <Bell className="h-4 w-4" />
           {unreadNotifications > 0 ? (
             <span className="absolute -right-1 -top-1 min-w-[18px] rounded-full bg-electric-violet px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">
@@ -189,22 +221,26 @@ export function NotificationCenter({
             </span>
           ) : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-text-primary">
-            Notifications
-          </span>
-          <span className="block text-xs text-text-tertiary">
-            {unreadNotifications > 0
-              ? `${unreadNotifications} unread`
-              : 'All caught up'}
-          </span>
-        </div>
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 text-text-tertiary transition-transform duration-200',
-            isNotificationsOpen ? 'rotate-180' : '',
-          )}
-        />
+        {variant === 'expanded' ? (
+          <>
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-text-primary">
+                Notifications
+              </span>
+              <span className="block text-xs text-text-tertiary">
+                {unreadNotifications > 0
+                  ? `${unreadNotifications} unread`
+                  : 'All caught up'}
+              </span>
+            </div>
+            <ChevronDown
+              className={cn(
+                'h-4 w-4 text-text-tertiary transition-transform duration-200',
+                isNotificationsOpen ? 'rotate-180' : '',
+              )}
+            />
+          </>
+        ) : null}
       </button>
 
       {isNotificationsOpen && panelPosition
