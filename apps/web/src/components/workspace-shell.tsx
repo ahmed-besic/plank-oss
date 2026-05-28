@@ -34,6 +34,7 @@ import { useWorkspaceShellLayout } from './use-workspace-shell-layout'
 
 const COLLAPSED_SIDEBAR_WIDTH = 56
 const CREATE_BOARD_MENU_WIDTH = 352
+const WORKSPACE_MENU_WIDTH = 352
 
 export function WorkspaceShell({
   activeBoardId,
@@ -55,10 +56,15 @@ export function WorkspaceShell({
   const navigate = useNavigate()
   const { convexClient, pluginRegistry, queryClient } = usePlankApp()
   const workspaceMenuRef = useRef<HTMLDivElement>(null)
+  const workspaceMenuPanelRef = useRef<HTMLDivElement>(null)
   const boardMenuRef = useRef<HTMLDivElement>(null)
   const createBoardButtonRef = useRef<HTMLButtonElement>(null)
   const createBoardMenuPanelRef = useRef<HTMLDivElement>(null)
   const [createBoardMenuPosition, setCreateBoardMenuPosition] = useState({
+    left: 0,
+    top: 0,
+  })
+  const [workspaceMenuPosition, setWorkspaceMenuPosition] = useState({
     left: 0,
     top: 0,
   })
@@ -253,10 +259,19 @@ export function WorkspaceShell({
       return
     }
 
+    updateWorkspaceMenuPosition()
+    window.addEventListener('resize', updateWorkspaceMenuPosition)
+    window.addEventListener('scroll', updateWorkspaceMenuPosition, true)
+
     const handlePointerDown = (event: PointerEvent) => {
-      if (!workspaceMenuRef.current?.contains(event.target as Node)) {
-        setIsWorkspaceMenuOpen(false)
+      const target = event.target as Node
+      if (
+        workspaceMenuRef.current?.contains(target) ||
+        workspaceMenuPanelRef.current?.contains(target)
+      ) {
+        return
       }
+      setIsWorkspaceMenuOpen(false)
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -269,6 +284,8 @@ export function WorkspaceShell({
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
+      window.removeEventListener('resize', updateWorkspaceMenuPosition)
+      window.removeEventListener('scroll', updateWorkspaceMenuPosition, true)
       window.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
@@ -306,10 +323,7 @@ export function WorkspaceShell({
       return
     }
 
-    const menuWidth = Math.min(
-      CREATE_BOARD_MENU_WIDTH,
-      window.innerWidth - 16,
-    )
+    const menuWidth = Math.min(CREATE_BOARD_MENU_WIDTH, window.innerWidth - 16)
     const viewportPadding = 8
     let left = rect.right + viewportPadding
     if (left + menuWidth > window.innerWidth - viewportPadding) {
@@ -319,6 +333,28 @@ export function WorkspaceShell({
     setCreateBoardMenuPosition({
       left,
       top: Math.max(viewportPadding, rect.top),
+    })
+  }
+
+  const updateWorkspaceMenuPosition = () => {
+    const rect = workspaceMenuRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return
+    }
+
+    const viewportPadding = 8
+    const menuWidth = Math.min(WORKSPACE_MENU_WIDTH, window.innerWidth - 16)
+    let left = rect.left + 12
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = Math.max(
+        viewportPadding,
+        window.innerWidth - menuWidth - viewportPadding,
+      )
+    }
+
+    setWorkspaceMenuPosition({
+      left,
+      top: Math.min(rect.bottom + 4, window.innerHeight - viewportPadding),
     })
   }
 
@@ -364,6 +400,16 @@ export function WorkspaceShell({
       const next = !open
       if (next) {
         requestAnimationFrame(updateCreateBoardMenuPosition)
+      }
+      return next
+    })
+  }
+
+  const toggleWorkspaceMenu = () => {
+    setIsWorkspaceMenuOpen((open) => {
+      const next = !open
+      if (next) {
+        requestAnimationFrame(updateWorkspaceMenuPosition)
       }
       return next
     })
@@ -579,7 +625,7 @@ export function WorkspaceShell({
             <div className="flex w-full items-center gap-1">
               <button
                 className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-1.5 text-left transition-all duration-200 hover:bg-surface-sunken"
-                onClick={() => setIsWorkspaceMenuOpen((open) => !open)}
+                onClick={toggleWorkspaceMenu}
                 type="button"
               >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet to-accent-teal text-sm font-bold text-white shadow-sm">
@@ -610,62 +656,6 @@ export function WorkspaceShell({
                 <PanelLeftClose className="h-4 w-4" />
               </button>
             </div>
-
-            {isWorkspaceMenuOpen ? (
-              <div className="absolute left-3 top-full z-30 mt-1 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated">
-                {workspaceItems.map((workspace) => {
-                  const isCurrentWorkspace =
-                    workspace.slug === overview.workspace.slug
-
-                  return (
-                    <button
-                      key={workspace.id}
-                      className={cn(
-                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150',
-                        isCurrentWorkspace
-                          ? 'bg-electric-violet/8 text-text-primary'
-                          : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
-                      )}
-                      onClick={() => switchWorkspace(workspace.slug)}
-                      type="button"
-                    >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet/20 to-accent-teal/20 text-sm font-bold text-electric-violet">
-                        {workspace.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {workspace.name}
-                        </span>
-                        <span className="text-xs text-text-tertiary">
-                          {workspace.role}
-                        </span>
-                      </div>
-                      {isCurrentWorkspace ? (
-                        <span className="rounded-md bg-electric-violet/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-electric-violet">
-                          Active
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-                <div className="my-1 h-px bg-border-subtle" />
-                <button
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary transition-all duration-150 hover:bg-surface-sunken hover:text-text-primary"
-                  disabled={createWorkspace.isPending}
-                  onClick={requestCreateWorkspace}
-                  type="button"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-electric-violet">
-                    <Plus className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm font-medium">
-                    {createWorkspace.isPending
-                      ? 'Creating workspace…'
-                      : 'Create workspace'}
-                  </span>
-                </button>
-              </div>
-            ) : null}
           </div>
 
           <NotificationCenter overview={overview} />
@@ -914,6 +904,76 @@ export function WorkspaceShell({
           </div>
         </main>
       </div>
+      {isWorkspaceMenuOpen && hydrated
+        ? createPortal(
+            <div
+              ref={workspaceMenuPanelRef}
+              aria-label="Workspace switcher"
+              className="fixed z-50 w-[min(22rem,calc(100vw-2rem))] animate-scale-in rounded-2xl border border-border-subtle bg-cloud-white p-1.5 shadow-elevated"
+              onPointerDown={(event) => event.stopPropagation()}
+              role="menu"
+              style={{
+                left: workspaceMenuPosition.left,
+                top: workspaceMenuPosition.top,
+              }}
+            >
+              {workspaceItems.map((workspace) => {
+                const isCurrentWorkspace =
+                  workspace.slug === overview.workspace.slug
+
+                return (
+                  <button
+                    key={workspace.id}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150',
+                      isCurrentWorkspace
+                        ? 'bg-electric-violet/8 text-text-primary'
+                        : 'text-text-secondary hover:bg-surface-sunken hover:text-text-primary',
+                    )}
+                    onClick={() => switchWorkspace(workspace.slug)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-electric-violet/20 to-accent-teal/20 text-sm font-bold text-electric-violet">
+                      {workspace.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {workspace.name}
+                      </span>
+                      <span className="text-xs text-text-tertiary">
+                        {workspace.role}
+                      </span>
+                    </div>
+                    {isCurrentWorkspace ? (
+                      <span className="rounded-md bg-electric-violet/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-electric-violet">
+                        Active
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary transition-all duration-150 hover:bg-surface-sunken hover:text-text-primary"
+                disabled={createWorkspace.isPending}
+                onClick={requestCreateWorkspace}
+                role="menuitem"
+                type="button"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-electric-violet">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <span className="text-sm font-medium">
+                  {createWorkspace.isPending
+                    ? 'Creating workspace…'
+                    : 'Create workspace'}
+                </span>
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
       {isCreateBoardMenuOpen && hydrated
         ? createPortal(
             <div
@@ -973,8 +1033,8 @@ export function WorkspaceShell({
                     Private board
                   </span>
                   <span className="mt-0.5 block text-xs leading-snug text-text-tertiary">
-                    Only you can see this board. Workspace members will not see it
-                    in the sidebar.
+                    Only you can see this board. Workspace members will not see
+                    it in the sidebar.
                   </span>
                 </span>
               </label>

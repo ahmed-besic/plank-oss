@@ -1,5 +1,6 @@
 import { canViewerAccessBoard } from "@plank/domain";
 import { v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { getWorkspaceAccessBySlugIfAuthenticated } from "./lib/auth";
 import {
@@ -22,7 +23,10 @@ export const searchBoardTitles = query({
       return [];
     }
 
-    const access = await getWorkspaceAccessBySlugIfAuthenticated(ctx, args.workspaceSlug);
+    const access = await getWorkspaceAccessBySlugIfAuthenticated(
+      ctx,
+      args.workspaceSlug,
+    );
     if (!access) {
       return [];
     }
@@ -62,12 +66,12 @@ export const searchBoardTitles = query({
       .filter((card) => getCardScopeId(card) === activeScopeId)
       .slice(0, 8)
       .map((card) => ({
-      id: card._id,
-      title: card.meta.title,
-      statusKey: card.statusKey,
-      columnId: card.statusKey,
-      scopeId: getCardScopeId(card),
-    }));
+        id: card._id,
+        title: card.meta.title,
+        statusKey: card.statusKey,
+        columnId: card.statusKey,
+        scopeId: getCardScopeId(card),
+      }));
   },
 });
 
@@ -84,7 +88,10 @@ export const searchWorkspaceCardTitles = query({
       return [];
     }
 
-    const access = await getWorkspaceAccessBySlugIfAuthenticated(ctx, args.workspaceSlug);
+    const access = await getWorkspaceAccessBySlugIfAuthenticated(
+      ctx,
+      args.workspaceSlug,
+    );
     if (!access) {
       return [];
     }
@@ -92,13 +99,15 @@ export const searchWorkspaceCardTitles = query({
     const results = await ctx.db
       .query("cards")
       .withSearchIndex("search_title", (search) =>
-        search.search("meta.title", term).eq("workspaceId", access.workspace._id),
+        search
+          .search("meta.title", term)
+          .eq("workspaceId", access.workspace._id),
       )
       .take(args.limit ?? 8);
 
     const filtered = results.filter((card) => card._id !== args.excludeCardId);
     const boardsById = new Map<string, { name: string }>();
-    const accessibleCards = [];
+    const accessibleCards: Doc<"cards">[] = [];
     for (const card of filtered) {
       if (boardsById.has(card.boardId)) {
         accessibleCards.push(card);
